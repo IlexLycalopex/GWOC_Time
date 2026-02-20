@@ -492,45 +492,26 @@ table.rec-table{width:100%;border-collapse:collapse}
 
 <script>
 // ================================================================
-// CONFIGURATION — replace these two values with your project details
+// CONFIGURATION
+// Replace the two placeholder values below with your Supabase details.
 // Found at: Supabase Dashboard > Project Settings > API
+// Use the URL and the anon/public key.
 // ================================================================
-const SUPABASE_URL      = `https://mafbfgvotsjscczjmjmx.supabase.co`;
-const SUPABASE_ANON_KEY = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NDE4MTIsImV4cCI6MjA4NzExNzgxMn0.6oLTvdh4Pf7YJ-BDfhV3gOe6HphJJwYs-am96kcnK8Q`;
+const SUPABASE_URL      = "https://mafbfgvotsjscczjmjmx.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NDE4MTIsImV4cCI6MjA4NzExNzgxMn0.6oLTvdh4Pf7YJ-BDfhV3gOe6HphJJwYs-am96kcnK8Q";
 
 // ================================================================
 // INIT SUPABASE
-// flowType: 'pkce' is required for GitHub Pages so that magic link,
-// invite, and password reset redirects work correctly.
 // ================================================================
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    flowType: 'pkce',
+    flowType: "pkce",
     detectSessionInUrl: true,
     persistSession: true,
     autoRefreshToken: true
   }
 });
-
-// Show a clear error if credentials are still placeholder values
-if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('authScreen').style.display = 'flex';
-    const box = document.querySelector('.auth-box');
-    box.innerHTML = \`
-      <div style="text-align:center;padding:10px 0">
-        <div style="font-size:2.5rem;margin-bottom:14px">⚙️</div>
-        <h2 style="font-family:'Playfair Display',serif;color:#c0392b;margin-bottom:10px">Configuration Required</h2>
-        <p style="font-size:0.85rem;color:#3a5068;line-height:1.6;margin-bottom:16px">
-          Open <strong>index.html</strong> and replace<br>
-          <code style="background:#eaf0f6;padding:2px 6px;border-radius:4px">YOUR_SUPABASE_URL</code> and<br>
-          <code style="background:#eaf0f6;padding:2px 6px;border-radius:4px">YOUR_SUPABASE_ANON_KEY</code><br>
-          with your values from Supabase &rarr; Project Settings &rarr; API
-        </p>
-      </div>\`;
-  });
-}
 
 // ================================================================
 // APP STATE
