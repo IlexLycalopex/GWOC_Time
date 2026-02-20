@@ -729,17 +729,37 @@ document.addEventListener('DOMContentLoaded', () => {
 }); // end DOMContentLoaded
 
 async function loadProfile() {
-  const { data, error } = await db
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
+  try {
+    const { data, error } = await db
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
 
-  if (error || !data) {
-    console.error('Profile load error:', error);
-    return;
+    if (error) {
+      console.error('Profile load error:', error.message);
+      // If profiles table missing, create a minimal fallback so app doesn't hang
+      currentProfile = {
+        id: currentUser.id,
+        email: currentUser.email,
+        full_name: currentUser.email,
+        role: 'staff',
+        is_active: true
+      };
+      showToast('Warning: profiles table not found. Run the SQL setup script in Supabase.');
+      return;
+    }
+    currentProfile = data;
+  } catch(e) {
+    console.error('loadProfile exception:', e);
+    currentProfile = {
+      id: currentUser.id,
+      email: currentUser.email,
+      full_name: currentUser.email,
+      role: 'staff',
+      is_active: true
+    };
   }
-  currentProfile = data;
 }
 
 // ================================================================
@@ -785,7 +805,14 @@ async function bootApp() {
   if (adminOpt && !isAdmin()) adminOpt.style.display = 'none';
 
   showLoading();
-  await Promise.all([loadStaff(), loadLocations()]);
+  try {
+    await Promise.all([loadStaff(), loadLocations()]);
+  } catch(e) {
+    hideLoading();
+    console.error('Data load error:', e);
+    showToast('Database error — check Supabase setup. See console for details.');
+    // Still show the app — tables may just be empty
+  }
   hideLoading();
 
   // Init page
@@ -821,11 +848,22 @@ function switchPage(p) {
 // STAFF DATA (from DB)
 // ================================================================
 async function loadStaff() {
-  const { data, error } = await db.from('staff').select('*').order('name');
-  if (error) { console.error(error); return; }
-  staffList = data || [];
-  document.getElementById('staffBadge').textContent = staffList.length;
-  rebuildStaffSelect();
+  try {
+    const { data, error } = await db.from('staff').select('*').order('name');
+    if (error) {
+      console.error('loadStaff error:', error.message);
+      // Table may not exist yet — fail gracefully
+      staffList = [];
+      return;
+    }
+    staffList = data || [];
+    const badge = document.getElementById('staffBadge');
+    if (badge) badge.textContent = staffList.length;
+    rebuildStaffSelect();
+  } catch(e) {
+    console.error('loadStaff exception:', e);
+    staffList = [];
+  }
 }
 
 function rebuildStaffSelect() {
@@ -883,10 +921,19 @@ function renderStaffGrid() {
 // LOCATION DATA (from DB)
 // ================================================================
 async function loadLocations() {
-  const { data, error } = await db.from('locations').select('*').order('name');
-  if (error) { console.error(error); return; }
-  locationList = data || [];
-  rebuildLocSelects();
+  try {
+    const { data, error } = await db.from('locations').select('*').order('name');
+    if (error) {
+      console.error('loadLocations error:', error.message);
+      locationList = [];
+      return;
+    }
+    locationList = data || [];
+    rebuildLocSelects();
+  } catch(e) {
+    console.error('loadLocations exception:', e);
+    locationList = [];
+  }
 }
 
 function rebuildLocSelects() {
