@@ -164,9 +164,9 @@ table.rec-table{width:100%;border-collapse:collapse}
 .dash-table tr:last-child td{border-bottom:none}
 .dash-table tr:hover td{background:var(--milk)}
 .dash-table td:first-child{font-weight:600;color:var(--deep)}
-.violation-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--steam);font-size:0.82rem}
-.violation-item:last-child{border-bottom:none}
-.violation-dot{width:8px;height:8px;border-radius:50%;background:var(--flag-red);flex-shrink:0;margin-top:4px}
+.flag-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--steam);font-size:0.82rem}
+.flag-item:last-child{border-bottom:none}
+.flag-dot{width:8px;height:8px;border-radius:50%;background:var(--flag-red);flex-shrink:0;margin-top:4px}
 
 /* USERS / ADMIN */
 .users-table{width:100%;border-collapse:collapse}
@@ -376,13 +376,13 @@ table.rec-table{width:100%;border-collapse:collapse}
   </div>
   <div class="dash-cols">
     <div class="dash-card"><div class="dash-card-hdr">📅 Hours by Day of Week</div><div class="dash-card-body" id="chartDow"></div></div>
-    <div class="dash-card"><div class="dash-card-hdr">⚠ Break Violations</div><div class="dash-card-body" id="chartViolations"></div></div>
+    <div class="dash-card"><div class="dash-card-hdr">⚠ Break Flags</div><div class="dash-card-body" id="chartFlags"></div></div>
   </div>
   <div class="dash-card" style="margin-bottom:0">
     <div class="dash-card-hdr">📋 Staff Summary Table</div>
     <div class="dash-card-body" style="padding:0;overflow-x:auto">
       <table class="dash-table" id="staffSummaryTable">
-        <thead><tr><th>Name</th><th>Shifts</th><th>Total Hours</th><th>Avg Shift</th><th>Locations</th><th>Violations</th></tr></thead>
+        <thead><tr><th>Name</th><th>Shifts</th><th>Total Hours</th><th>Avg Shift</th><th>Locations</th><th>Flags</th></tr></thead>
         <tbody id="staffSummaryBody"></tbody>
       </table>
     </div>
@@ -850,53 +850,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadProfile() {
   console.log('[loadProfile] starting for uid:', currentUser.id);
-  // Supabase free-tier projects cold-start in 10–20s after inactivity.
-  // We keep retrying for up to 45s before giving up, showing a gentle
-  // status message rather than booting back to the login screen.
+  // Supabase free-tier projects cold-start after inactivity — usually 5–15s.
+  // We retry quickly with short gaps so the user isn't waiting unnecessarily.
   const startedAt = Date.now();
-  const MAX_WAIT  = 45000; // 45 seconds total
+  const MAX_WAIT  = 40000; // 40s total before giving up
   let   attempt   = 0;
 
   while (Date.now() - startedAt < MAX_WAIT) {
     attempt++;
     try {
-      console.log('[loadProfile] attempt', attempt);
       const result = await Promise.race([
         db.from('profiles').select('*').eq('id', currentUser.id).single(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
       ]);
 
       if (!result.error) {
         currentProfile = result.data || null;
-        console.log('[loadProfile] success, role:', currentProfile?.role);
+        console.log('[loadProfile] success on attempt', attempt, 'role:', currentProfile?.role);
         return;
       }
 
-      // PGRST116 = row genuinely doesn't exist — no point retrying
       if (result.error.code === 'PGRST116') {
-        console.error('[loadProfile] no profile row exists for this user');
+        console.error('[loadProfile] no profile row exists');
         currentProfile = null;
         return;
       }
 
-      console.warn('[loadProfile] attempt', attempt, 'DB error:', result.error.message, '— retrying...');
+      console.warn('[loadProfile] attempt', attempt, 'DB error:', result.error.message);
 
     } catch(e) {
-      console.warn('[loadProfile] attempt', attempt, 'caught:', e.message, '— retrying...');
+      console.warn('[loadProfile] attempt', attempt, 'timed out or errored:', e.message);
     }
 
-    // Show a soft status message after the first failure so the user
-    // knows the app is still working, not frozen
+    // Show message immediately on first failure
     if (attempt === 1) {
-      showAuthInfo('signInInfo', 'Connecting to server — this can take a few seconds after a period of inactivity...');
+      showAuthInfo('signInInfo', 'Connecting — please wait a moment...');
     }
 
-    const delay = Math.min(3000 * attempt, 10000);
+    // Short gaps: 1s, 2s, 3s, then cap at 4s
+    const delay = Math.min(1000 * attempt, 4000);
     await new Promise(r => setTimeout(r, delay));
   }
 
-  // Exhausted all retries
-  console.error('[loadProfile] all retries exhausted after', Math.round((Date.now() - startedAt) / 1000), 's');
+  console.error('[loadProfile] exhausted retries after', Math.round((Date.now() - startedAt) / 1000), 's');
   currentProfile = null;
 }
 
@@ -930,7 +926,8 @@ async function bootApp() {
       const fw = document.getElementById('filterNameWrap');
       if (sw) sw.style.display = 'none';
       if (sr) sr.style.display = 'block';
-      if (sd) sd.textContent = currentProfile?.full_name || currentProfile?.email;
+      // staffNameDisplay is set after loadStaff() resolves — see updateStaffNameDisplay()
+      if (sd) sd.textContent = currentProfile?.full_name || currentProfile?.email || '...';
       if (fw) fw.style.display = 'none';
     }
 
@@ -948,6 +945,9 @@ async function bootApp() {
     } finally {
       hideLoading();
     }
+
+    // For staff users, update the "Logging for" display with their linked staff name
+    if (!isAdminOrManager()) updateStaffNameDisplay();
 
     addShiftRow();
     switchPage('timesheets');
@@ -1008,6 +1008,21 @@ function rebuildStaffSelect() {
   if (!sel) return;
   sel.innerHTML = '<option value="">Select staff member...</option>' +
     staffList.map(s => `<option value="${s.id}">${esc(s.name)}${s.role ? ' — ' + esc(s.role) : ''}</option>`).join('');
+}
+
+function updateStaffNameDisplay() {
+  // Shows the linked staff record name in the "Logging for" bar for staff-role users.
+  // Falls back to profile name if not yet linked.
+  const sd = document.getElementById('staffNameDisplay');
+  if (!sd) return;
+  const linked = staffList.find(s => s.user_id === currentUser?.id);
+  if (linked) {
+    sd.innerHTML = `<span style="font-weight:700;color:var(--deep)">${esc(linked.name)}</span>
+      <span style="font-size:0.75rem;color:var(--text-light);margin-left:6px">${esc(currentProfile?.email || '')}</span>`;
+  } else {
+    sd.innerHTML = `${esc(currentProfile?.full_name || currentProfile?.email || '')}
+      <span style="font-size:0.72rem;color:var(--flag-amber);margin-left:8px">⚠ No staff record linked</span>`;
+  }
 }
 
 async function addStaff() {
@@ -1428,7 +1443,7 @@ async function saveEntry() {
     if (error) { showToast('Error saving: ' + error.message); return; }
     const hasWarning = shifts.some(s => s.break_warning);
     resetForm();
-    showToast(hasWarning ? 'Saved — break violations flagged' : 'Timesheet saved');
+    showToast(hasWarning ? 'Saved — break flags flagged' : 'Timesheet saved');
     renderRecords().catch(e => console.error('renderRecords after save:', e));
   } finally {
     hideLoading();
@@ -1530,8 +1545,8 @@ async function renderRecords() {
   summ.innerHTML = `<span>Showing <strong>${filtered.length}</strong> ${filtered.length === 1 ? 'entry' : 'entries'}${overLimit ? ' (limited to 500 — use date filters to narrow)' : ''}</span>
     <span>Total net hours: <strong>${totalNet.toFixed(2)}h</strong></span>
     ${totalWarn > 0
-      ? `<span style="color:var(--flag-red);font-weight:600">⚠ ${totalWarn} break violation${totalWarn > 1 ? 's' : ''}</span>`
-      : '<span style="color:var(--flag-green)">✓ No violations</span>'}`;
+      ? `<span style="color:var(--flag-red);font-weight:600">⚠ ${totalWarn} break flag${totalWarn > 1 ? 's' : ''}</span>`
+      : '<span style="color:var(--flag-green)">✓ No flags</span>'}`;
 }
 
 function showAmendReason(reason) {
@@ -1789,6 +1804,14 @@ async function renderUsers() {
             ? `<button class="btn ${u.is_active?'btn-danger-outline':'btn-outline'}" style="padding:4px 10px;font-size:0.76rem"
                 onclick="toggleUserActive('${u.id}', ${u.is_active})">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>`
             : ''}
+          ${isAdmin() && u.id !== currentUser.id
+            ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:0.76rem"
+                onclick="resendInvite('${esc(u.email)}', '${esc(u.full_name||'')}', '${esc(u.role||'staff')}')">Resend invite</button>`
+            : ''}
+          ${isAdmin() && u.id !== currentUser.id
+            ? `<button class="btn btn-danger-outline" style="padding:4px 10px;font-size:0.76rem"
+                onclick="deleteUser('${u.id}', '${esc(u.full_name||u.email)}')">Remove</button>`
+            : ''}
         </td>
       </tr>`;
     }).join('')}</tbody></table>`;
@@ -1838,6 +1861,70 @@ async function toggleUserActive(userId, currentlyActive) {
   } finally {
     hideLoading();
   }
+}
+
+async function resendInvite(email, full_name, role) {
+  if (!email) { showToast('No email address for this user'); return; }
+  showConfirm('Resend Invite', `Send a new invite email to ${email}?`, async () => {
+    showLoading();
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'apikey':        SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
+        },
+        body: JSON.stringify({
+          email,
+          data: { full_name, role },
+          redirect_to: window.location.origin + window.location.pathname
+        })
+      });
+      let body = {};
+      try { body = await resp.json(); } catch(_) {}
+      if (!resp.ok) {
+        showToast('Failed: ' + (body?.msg || body?.error || `Error ${resp.status}`));
+        return;
+      }
+      showToast(`Invite resent to ${email}`);
+    } finally {
+      hideLoading();
+    }
+  });
+}
+
+async function deleteUser(userId, displayName) {
+  showConfirm(
+    'Remove User',
+    `Permanently remove ${displayName}? Their timesheet records will be kept but they will no longer be able to sign in. This cannot be undone.`,
+    async () => {
+      showLoading();
+      try {
+        // Delete from Auth via Admin API
+        const resp = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+          method:  'DELETE',
+          headers: {
+            'apikey':        SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
+          }
+        });
+        if (!resp.ok) {
+          let body = {};
+          try { body = await resp.json(); } catch(_) {}
+          showToast('Failed: ' + (body?.msg || body?.error || `Error ${resp.status}`));
+          return;
+        }
+        // Profile row will be cascade-deleted by Supabase auth trigger,
+        // but delete explicitly as a fallback
+        await db.from('profiles').delete().eq('id', userId);
+        showToast(`${displayName} removed`);
+        renderUsers().catch(e => console.error('renderUsers after delete:', e));
+      } finally {
+        hideLoading();
+      }
+    }
+  );
 }
 
 // ================================================================
@@ -1922,14 +2009,14 @@ async function renderDashboard() {
   const totalHours  = allShifts.reduce((a, s) => a + (parseFloat(s.net_hours) || 0), 0);
   const totalShifts = allShifts.length;
   const uniqueStaff = new Set(allShifts.map(s => s.staff_id)).size;
-  const violations  = allShifts.filter(s => s.break_warning).length;
+  const flags  = allShifts.filter(s => s.break_warning).length;
   const avgShift    = totalShifts > 0 ? totalHours / totalShifts : 0;
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi-card accent"><div class="kpi-label">Total Net Hours</div><div class="kpi-value">${totalHours.toFixed(1)}</div><div class="kpi-sub">across ${totalShifts} shift${totalShifts!==1?'s':''}</div></div>
     <div class="kpi-card green"><div class="kpi-label">Active Staff</div><div class="kpi-value">${uniqueStaff}</div><div class="kpi-sub">in selected period</div></div>
     <div class="kpi-card amber"><div class="kpi-label">Avg Shift Length</div><div class="kpi-value">${avgShift.toFixed(1)}h</div><div class="kpi-sub">net hours</div></div>
-    <div class="kpi-card ${violations>0?'red':'green'}"><div class="kpi-label">Break Violations</div><div class="kpi-value">${violations}</div><div class="kpi-sub">${violations>0?'require attention':'all compliant'}</div></div>`;
+    <div class="kpi-card ${flags>0?'red':'green'}"><div class="kpi-label">Break Flags</div><div class="kpi-value">${flags}</div><div class="kpi-sub">${flags>0?'require attention':'all compliant'}</div></div>`;
 
   const BAR_COLORS = ['#3d8bcd','#e8a020','#1a9a5a','#7056a0','#c97b2e','#b52e7e','#2e9fc9','#b54d2e'];
   const AVC = ['#2e7bc9','#7056a0','#1a9a5a','#c97b2e','#b54d2e','#2e9fc9','#a07c2e','#b52e7e'];
@@ -1960,13 +2047,13 @@ async function renderDashboard() {
   drawBars('chartDow', DOW.map(d=>({label:d,val:byDow[d]})), i=>['#3d8bcd','#3d8bcd','#3d8bcd','#3d8bcd','#3d8bcd','#e8a020','#7056a0'][i]);
 
   const violShifts = allShifts.filter(s => s.break_warning).slice(0, 12);
-  const vc = document.getElementById('chartViolations');
+  const vc = document.getElementById('chartFlags');
   if (!violShifts.length) {
-    vc.innerHTML = '<div class="empty-state" style="padding:24px 0"><div class="icon" style="font-size:1.5rem">✅</div><p>No violations in this period.</p></div>';
+    vc.innerHTML = '<div class="empty-state" style="padding:24px 0"><div class="icon" style="font-size:1.5rem">✅</div><p>No flags in this period.</p></div>';
   } else {
     vc.innerHTML = violShifts.map(s => `
-      <div class="violation-item">
-        <div class="violation-dot"></div>
+      <div class="flag-item">
+        <div class="flag-dot"></div>
         <div>
           <strong>${esc(s.staff?.name||'?')}</strong> — ${s.date} ${s.start_time?.slice(0,5)} to ${s.end_time?.slice(0,5)}
           ${s.location?.name ? `<span style="color:var(--text-light);font-size:0.75rem"> @ ${esc(s.location.name)}</span>` : ''}
@@ -1980,12 +2067,12 @@ async function renderDashboard() {
   const staffMap = {};
   allShifts.forEach(s => {
     const n = s.staff?.name || 'Unknown';
-    if (!staffMap[n]) staffMap[n] = { shifts:0, hours:0, locs:new Set(), violations:0 };
+    if (!staffMap[n]) staffMap[n] = { shifts:0, hours:0, locs:new Set(), flags:0 };
     const e = staffMap[n];
     e.shifts++;
     e.hours += parseFloat(s.net_hours)||0;
     if (s.location?.name) e.locs.add(s.location.name);
-    if (s.break_warning) e.violations++;
+    if (s.break_warning) e.flags++;
   });
   const tbody = document.getElementById('staffSummaryBody');
   tbody.innerHTML = Object.entries(staffMap).sort((a,b)=>b[1].hours-a[1].hours).map(([name,d]) => `
@@ -1995,7 +2082,7 @@ async function renderDashboard() {
       <td style="font-weight:600">${d.hours.toFixed(2)}h</td>
       <td>${d.shifts>0?(d.hours/d.shifts).toFixed(2)+'h':'—'}</td>
       <td style="font-size:0.78rem;color:var(--text-mid)">${[...d.locs].join(', ')||'—'}</td>
-      <td>${d.violations>0?`<span class="break-flag error">⚠ ${d.violations}</span>`:'<span class="break-flag ok">✓ 0</span>'}</td>
+      <td>${d.flags>0?`<span class="break-flag error">⚠ ${d.flags}</span>`:'<span class="break-flag ok">✓ 0</span>'}</td>
     </tr>`).join('');
   if (!tbody.innerHTML) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-light);font-style:italic">No data for this period</td></tr>';
 }
@@ -2022,7 +2109,7 @@ async function exportCSV() {
     if (error) { showToast('Export error: ' + error.message); return; }
     if (!recs?.length) { showToast('No records to export for the current filter'); return; }
 
-    let csv = 'Name,Location,Date,Start,End,Break Taken (mins),Break Required (mins),Net Hours,Break Violation\n';
+    let csv = 'Name,Location,Date,Start,End,Break Taken (mins),Break Required (mins),Net Hours,Break Flag\n';
     recs.forEach(r => {
       const safeCsv = v => `"${String(v||'').replace(/"/g,'""')}"`;
       csv += `${safeCsv(r.staff?.name)},${safeCsv(r.location?.name)},${r.date},${r.start_time?.slice(0,5)||''},${r.end_time?.slice(0,5)||''},${r.break_mins||0},${r.required_break_mins||0},${r.net_hours?parseFloat(r.net_hours).toFixed(2):''},${r.break_warning?'YES':'No'}\n`;
