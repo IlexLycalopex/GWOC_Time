@@ -277,12 +277,60 @@ table.rec-table{width:100%;border-collapse:collapse}
 /* Records table — card view on mobile */
 @media(max-width:700px){
   .rec-table thead{display:none}
-  .rec-table tbody tr{display:block;background:white;border:1.5px solid var(--steam);border-radius:9px;margin-bottom:10px;padding:12px 14px}
+  .rec-table tbody tr{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:auto;
+    column-gap:10px;
+    row-gap:0;
+    background:white;
+    border:1.5px solid var(--steam);
+    border-radius:10px;
+    margin-bottom:10px;
+    padding:12px 13px;
+    position:relative;
+  }
   .rec-table tbody tr:hover{background:white}
-  .rec-table td{display:block;padding:3px 0;font-size:0.84rem;border-bottom:none}
-  .rec-table td:before{content:attr(data-label);font-size:0.62rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:1px}
-  .rec-table td[data-label=""][style*="display:flex"]{display:flex !important;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--steam)}
-  .rec-table td:nth-child(1){font-size:0.95rem;padding-bottom:6px;margin-bottom:4px;border-bottom:1px solid var(--steam)}
+  /* Name spans full width — card title */
+  .rec-table td[data-label=""]:first-child{
+    grid-column:1/-1;
+    font-size:0.95rem;
+    font-weight:700;
+    color:var(--deep);
+    padding-bottom:8px;
+    margin-bottom:6px;
+    border-bottom:1px solid var(--steam);
+    display:block;
+  }
+  .rec-table td[data-label=""]:first-child::before{display:none}
+  /* Action buttons span full width at bottom */
+  .rec-table td[data-label=""]:last-child{
+    grid-column:1/-1;
+    display:flex !important;
+    gap:8px;
+    padding-top:8px;
+    margin-top:4px;
+    border-top:1px solid var(--steam);
+  }
+  .rec-table td[data-label=""]:last-child .btn{flex:1;font-size:0.8rem;padding:7px 0;justify-content:center}
+  /* Status spans full width */
+  .rec-table td[data-label="Status"]{
+    grid-column:1/-1;
+    padding:4px 0 2px;
+  }
+  /* All other cells: label above value */
+  .rec-table td{display:block;padding:3px 0 5px;font-size:0.84rem;border:none}
+  .rec-table td::before{
+    content:attr(data-label);
+    display:block;
+    font-size:0.6rem;
+    font-weight:700;
+    color:var(--text-light);
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+    margin-bottom:1px;
+  }
+  .rec-table td[data-label=""]::before{display:none}
 }
 /* Touch-friendly controls across the board on mobile */
 @media(max-width:700px){
@@ -355,11 +403,11 @@ table.rec-table{width:100%;border-collapse:collapse}
     <div class="logo-text"><h1>GWOC</h1><span>Timesheet System</span></div>
   </a>
   <nav id="mainNav">
-    <div class="nav-tab" id="tab-dashboard" onclick="switchPage('dashboard')">📊 Dashboard</div>
-    <div class="nav-tab active" id="tab-timesheets" onclick="switchPage('timesheets')">🗓 Timesheets</div>
-    <div class="nav-tab hidden" id="tab-locations" onclick="switchPage('locations')">📍 Locations</div>
-    <div class="nav-tab hidden" id="tab-users" onclick="switchPage('users')">👥 Users</div>
-    <div class="nav-tab hidden" id="tab-audit" onclick="switchPage('audit')">📜 Audit Log</div>
+    <div class="nav-tab" id="tab-dashboard" onclick="switchPage('dashboard')">Dashboard</div>
+    <div class="nav-tab active" id="tab-timesheets" onclick="switchPage('timesheets')">Timesheets</div>
+    <div class="nav-tab hidden" id="tab-locations" onclick="switchPage('locations')">Locations</div>
+    <div class="nav-tab hidden" id="tab-users" onclick="switchPage('users')">Users</div>
+    <div class="nav-tab hidden" id="tab-audit" onclick="switchPage('audit')">Audit Log</div>
   </nav>
   <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleHamburger()" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -460,7 +508,10 @@ table.rec-table{width:100%;border-collapse:collapse}
       <div><label>Location</label><br><select id="filterLoc" onchange="renderRecords()" style="margin-top:3px;width:130px"><option value="">All</option></select></div>
       <div><label>From</label><br><input type="date" id="filterFrom" onchange="renderRecords()" style="margin-top:3px"></div>
       <div><label>To</label><br><input type="date" id="filterTo" onchange="renderRecords()" style="margin-top:3px"></div>
-      <div style="margin-left:auto"><button class="btn btn-outline" onclick="exportCSV()" style="font-size:0.78rem;padding:6px 13px">⬇ Export CSV</button></div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:flex-end">
+        <button class="btn btn-outline" onclick="clearFilters()" style="font-size:0.78rem;padding:6px 13px">✕ Clear</button>
+        <button class="btn btn-outline" onclick="exportCSV()" style="font-size:0.78rem;padding:6px 13px">⬇ Export</button>
+      </div>
     </div>
     <div id="recordsContainer"></div>
     <div class="summary-bar" id="summaryBar"></div>
@@ -473,8 +524,9 @@ table.rec-table{width:100%;border-collapse:collapse}
     <div class="card-header"><span>📍</span><h2>Locations</h2></div>
     <div class="card-body">
       <div class="entity-add-form">
+        <div class="field-group" style="width:70px;flex-shrink:0"><label>Icon</label><input type="text" id="newLocIcon" placeholder="📍" style="text-align:center;font-size:1.3rem" maxlength="2"></div>
         <div class="field-group" style="min-width:160px;flex:1"><label>Location Name</label><input type="text" id="newLocName" placeholder="e.g. High Street" autocomplete="off"></div>
-        <button class="btn btn-primary" onclick="addLocation()" style="flex-shrink:0">Add Location</button>
+        <button class="btn btn-primary" onclick="addLocation()" style="flex-shrink:0">Add</button>
       </div>
       <div id="locGrid"></div>
     </div>
@@ -539,6 +591,34 @@ table.rec-table{width:100%;border-collapse:collapse}
 </div><!-- /appRoot -->
 
 <!-- ==================== MODALS ==================== -->
+
+<!-- Confirm modal -->
+
+<!-- Location edit modal -->
+<div class="modal-overlay" id="locEditModal">
+  <div class="modal" style="max-width:400px">
+    <h3>Edit Location</h3>
+    <input type="hidden" id="locEditId">
+    <div style="display:flex;gap:12px;margin-bottom:16px">
+      <div class="field-group" style="width:80px;flex-shrink:0">
+        <label>Icon</label>
+        <input type="text" id="locEditIcon" style="text-align:center;font-size:1.4rem;padding:6px" maxlength="2">
+      </div>
+      <div class="field-group" style="flex:1">
+        <label>Name</label>
+        <input type="text" id="locEditName" placeholder="Location name">
+      </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:0.72rem;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Quick pick</div>
+      <div id="locIconPicker" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('locEditModal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLocEdit()">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- Confirm modal -->
 <div class="modal-overlay" id="confirmModal">
@@ -970,6 +1050,10 @@ async function bootApp() {
     // For staff users, update the "Logging for" display with their linked staff name
     if (!isAdminOrManager()) updateStaffNameDisplay();
 
+    // Guarantee exactly one blank row — clear in case anything pre-populated
+    document.getElementById('shiftRows').innerHTML  = '';
+    document.getElementById('shiftCards').innerHTML = '';
+    rowId = 0;
     addShiftRow();
     switchPage('timesheets');
 
@@ -1013,7 +1097,7 @@ function switchPage(p) {
   if (p === 'staff')      renderStaffGrid();
   if (p === 'locations')  renderLocGrid();
   if (p === 'dashboard')  { populateDashFilters(); renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
-  if (p === 'users')      renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); });
+  if (p === 'users')      { renderStaffGrid(); renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); }); }
   if (p === 'audit')      renderAuditLog().catch(e => { hideLoading(); console.error('renderAuditLog:', e); });
 }
 
@@ -1076,6 +1160,7 @@ async function addStaff() {
     document.getElementById('newRole').value  = '';
     await loadStaff();
     renderStaffGrid();
+    renderUsers().catch(e => console.error('renderUsers after addStaff:', e));
     showToast('Staff member added');
   } finally {
     hideLoading();
@@ -1172,26 +1257,28 @@ function populateDashFilters() {
 async function addLocation() {
   const btn  = document.querySelector('#page-locations .btn-primary');
   const name = document.getElementById('newLocName').value.trim();
+  const icon = document.getElementById('newLocIcon').value.trim() || '📍';
   if (!name) { showToast('Please enter a location name'); return; }
   if (btn) { btn.disabled = true; btn.textContent = 'Adding...'; }
   showLoading();
   try {
-    const { error } = await db.from('locations').insert({ name });
+    const { error } = await db.from('locations').insert({ name, icon });
     if (error) { showToast('Error: ' + error.message); return; }
     document.getElementById('newLocName').value = '';
+    document.getElementById('newLocIcon').value = '';
     await loadLocations();
     renderLocGrid();
     showToast('Location added');
   } finally {
     hideLoading();
-    if (btn) { btn.disabled = false; btn.textContent = 'Add Location'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
   }
 }
 
 async function deleteLocation(id) {
   const loc = locationList.find(l => l.id === id);
   const name = loc?.name || 'this location';
-  showConfirm('Remove Location', `Remove "${name}"? Existing timesheet records will keep the location name in historical exports but future records will not be assignable to it.`, async () => {
+  showConfirm('Remove Location', `Remove "${name}"? Existing timesheet records will retain the location name in exports.`, async () => {
     showLoading();
     try {
       const { error } = await db.from('locations').delete().eq('id', id);
@@ -1205,6 +1292,51 @@ async function deleteLocation(id) {
   });
 }
 
+const LOC_ICON_PRESETS = ['📍','🏢','🏪','🏭','🏬','🏨','🏫','🏗','🚉','🌿','☕','🍽','🛒','💼','🔧','⭐','🏠','🌳'];
+
+function openLocEdit(id) {
+  const loc = locationList.find(l => l.id === id);
+  if (!loc) return;
+  document.getElementById('locEditId').value   = id;
+  document.getElementById('locEditName').value = loc.name;
+  document.getElementById('locEditIcon').value = loc.icon || '📍';
+  const picker = document.getElementById('locIconPicker');
+  picker.innerHTML = LOC_ICON_PRESETS.map(ic => {
+    const active = (loc.icon || '📍') === ic;
+    return `<button type="button" onclick="pickLocIcon('${ic}')"
+      style="font-size:1.3rem;padding:4px 7px;border:2px solid ${active?'var(--accent)':'var(--steam)'};border-radius:7px;background:${active?'rgba(61,139,205,0.1)':'white'};cursor:pointer;line-height:1"
+      data-icon="${ic}">${ic}</button>`;
+  }).join('');
+  document.getElementById('locEditModal').classList.add('open');
+}
+
+function pickLocIcon(ic) {
+  document.getElementById('locEditIcon').value = ic;
+  document.querySelectorAll('#locIconPicker button').forEach(b => {
+    const sel = b.dataset.icon === ic;
+    b.style.borderColor = sel ? 'var(--accent)' : 'var(--steam)';
+    b.style.background  = sel ? 'rgba(61,139,205,0.1)' : 'white';
+  });
+}
+
+async function saveLocEdit() {
+  const id   = document.getElementById('locEditId').value;
+  const name = document.getElementById('locEditName').value.trim();
+  const icon = document.getElementById('locEditIcon').value.trim() || '📍';
+  if (!name) { showToast('Please enter a location name'); return; }
+  showLoading();
+  try {
+    const { error } = await db.from('locations').update({ name, icon }).eq('id', id);
+    if (error) { showToast('Error: ' + error.message); return; }
+    document.getElementById('locEditModal').classList.remove('open');
+    await loadLocations();
+    renderLocGrid();
+    showToast('Location updated');
+  } finally {
+    hideLoading();
+  }
+}
+
 function renderLocGrid() {
   const grid = document.getElementById('locGrid');
   if (!locationList.length) {
@@ -1213,9 +1345,11 @@ function renderLocGrid() {
   }
   grid.innerHTML = `<div class="entity-grid">${locationList.map(l => `
     <div class="entity-card">
-      <div class="loc-icon">📍</div>
+      <div class="loc-icon">${esc(l.icon || '📍')}</div>
       <div class="entity-info"><div class="entity-name">${esc(l.name)}</div></div>
-      ${isAdminOrManager() ? `<button class="entity-del" onclick="deleteLocation('${l.id}')" title="Remove">×</button>` : ''}
+      ${isAdminOrManager() ? `
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:0.74rem;margin-right:4px" onclick="openLocEdit('${l.id}')">Edit</button>
+        <button class="entity-del" onclick="deleteLocation('${l.id}')" title="Remove">×</button>` : ''}
     </div>`).join('')}</div>`;
 }
 
@@ -1508,6 +1642,14 @@ function resetForm() {
   addShiftRow();
 }
 
+function clearFilters() {
+  ['filterName','filterLoc','filterFrom','filterTo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderRecords();
+}
+
 // ================================================================
 // RENDER RECORDS
 // ================================================================
@@ -1607,12 +1749,28 @@ function showAmendReason(reason) {
 // DELETE RECORD (admin only)
 // ================================================================
 async function deleteRecord(id) {
-  showConfirm('Delete Entry', 'Delete this timesheet entry? This cannot be undone.', async () => {
+  // Fetch entry details first so we can log them — row won't exist after deletion
+  const { data: rec } = await db.from('timesheets')
+    .select('date, start_time, end_time, staff:staff_id(name), location:location_id(name)')
+    .eq('id', id).single();
+
+  const detail = rec
+    ? `${rec.staff?.name || '?'} — ${fmtDate(rec.date)} ${rec.start_time?.slice(0,5)||''} to ${rec.end_time?.slice(0,5)||''} @ ${rec.location?.name || 'no location'}`
+    : 'Unknown entry';
+
+  showConfirm('Delete Entry', `Delete timesheet for ${detail}? This cannot be undone.`, async () => {
     showLoading();
     try {
+      // Write audit log BEFORE delete so timesheet_id still exists
+      await db.from('amendment_log').insert({
+        timesheet_id: id,
+        amended_by:   currentUser.id,
+        reason:       `DELETED — ${detail}`,
+        changed_at:   new Date().toISOString()
+      });
       const { error } = await db.from('timesheets').delete().eq('id', id);
       if (error) { showToast('Error: ' + error.message); return; }
-      showToast('Entry deleted');
+      showToast('Entry deleted and logged in audit');
       renderRecords().catch(e => console.error('renderRecords after delete:', e));
     } finally {
       hideLoading();
