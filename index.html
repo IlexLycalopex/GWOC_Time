@@ -690,6 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Credentials are set — register the auth listener
   db.auth.onAuthStateChange(async (event, session) => {
     console.log('[Auth]', event, session?.user?.email || 'no user');
+    console.log('[Auth] handler running, event=', event, 'has session=', !!session);
 
     if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('authScreen').style.display = 'flex';
