@@ -723,10 +723,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       console.log('[Auth] profile loaded:', JSON.stringify(currentProfile));
       if (!currentProfile) {
-        console.error('[Auth] no profile — showing error');
+        console.error('[Auth] no profile — could not load from DB');
+        hideLoading();
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('appRoot').style.display = 'none';
-        showAuthErr('signInErr', 'Account found but no profile record exists. Ask your administrator to run the SQL setup script.');
+        showAuthErr('signInErr', 'Could not load your account profile. This may be a connection issue — please refresh and try again. If the problem persists, ask your administrator to check the SQL setup.');
         return;
       }
       console.log('[Auth] calling bootApp...');
@@ -742,40 +743,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadProfile() {
   console.log('[loadProfile] starting for uid:', currentUser.id);
-  
-  // Race the DB query against a 5-second timeout so we never hang forever
-  const fallback = {
-    id: currentUser.id,
-    email: currentUser.email,
-    full_name: currentUser.email,
-    role: 'staff',
-    is_active: true
-  };
 
-  try {
-    const result = await Promise.race([
+  async function attemptFetch() {
+    return Promise.race([
       db.from('profiles').select('*').eq('id', currentUser.id).single(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
     ]);
+  }
 
-    console.log('[loadProfile] query returned:', JSON.stringify(result));
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log('[loadProfile] attempt', attempt);
+      const result = await attemptFetch();
+      console.log('[loadProfile] query returned:', JSON.stringify(result));
 
-    if (result.error) {
-      console.error('[loadProfile] error:', result.error.message, result.error.code);
-      currentProfile = fallback;
+      if (result.error) {
+        console.error('[loadProfile] DB error:', result.error.message, result.error.code);
+        // PGRST116 = no row found — profile doesn't exist, don't retry
+        if (result.error.code === 'PGRST116') { currentProfile = null; return; }
+        if (attempt < 3) { await new Promise(r => setTimeout(r, 1500 * attempt)); continue; }
+        currentProfile = null;
+        return;
+      }
+      if (!result.data) {
+        console.warn('[loadProfile] no data row found');
+        currentProfile = null;
+        return;
+      }
+      currentProfile = result.data;
+      console.log('[loadProfile] success, role:', currentProfile.role);
       return;
-    }
-    if (!result.data) {
-      console.warn('[loadProfile] no data row found');
-      currentProfile = fallback;
-      return;
-    }
-    currentProfile = result.data;
-    console.log('[loadProfile] success, role:', currentProfile.role);
 
-  } catch(e) {
-    console.error('[loadProfile] caught:', e.message);
-    currentProfile = fallback;
+    } catch(e) {
+      console.error('[loadProfile] attempt', attempt, 'caught:', e.message);
+      if (attempt < 3) { await new Promise(r => setTimeout(r, 1500 * attempt)); continue; }
+      currentProfile = null;
+    }
   }
 }
 
@@ -802,9 +805,9 @@ async function bootApp() {
     });
 
     if (role === 'admin' || role === 'manager') {
-      showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
+      showTabs(['tab-dashboard','tab-timesheets','tab-staff','tab-locations','tab-users','tab-audit']);
     } else {
-      showTabs(['tab-dashboard']);
+      showTabs(['tab-dashboard','tab-timesheets']);
     }
     console.log('[Boot] 4 - tabs set for role:', role);
 
@@ -825,9 +828,17 @@ async function bootApp() {
 
     showLoading();
     console.log('[Boot] 6 - loading staff and locations...');
-    await Promise.all([loadStaff(), loadLocations()]);
+    try {
+      await Promise.race([
+        Promise.all([loadStaff(), loadLocations()]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Data load timed out')), 15000))
+      ]);
+    } catch(e) {
+      console.warn('[Boot] loadStaff/loadLocations issue:', e.message, '— continuing anyway');
+    } finally {
+      hideLoading();
+    }
     console.log('[Boot] 7 - staff:', staffList.length, 'locations:', locationList.length);
-    hideLoading();
 
     console.log('[Boot] 8 - adding shift row...');
     addShiftRow();
@@ -857,12 +868,12 @@ function switchPage(p) {
   if (page) page.classList.add('active');
   if (tab)  tab.classList.add('active');
 
-  if (p === 'timesheets')  { populateLocFilter(); renderRecords(); }
+  if (p === 'timesheets')  { populateLocFilter(); renderRecords().catch(e => { hideLoading(); console.error('renderRecords:', e); }); }
   if (p === 'staff')       renderStaffGrid();
   if (p === 'locations')   renderLocGrid();
-  if (p === 'dashboard')   { populateDashFilters(); renderDashboard(); }
-  if (p === 'users')       renderUsers();
-  if (p === 'audit')       renderAuditLog();
+  if (p === 'dashboard')   { populateDashFilters(); renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
+  if (p === 'users')       renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); });
+  if (p === 'audit')       renderAuditLog().catch(e => { hideLoading(); console.error('renderAuditLog:', e); });
 }
 
 // ================================================================
