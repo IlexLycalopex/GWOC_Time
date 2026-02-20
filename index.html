@@ -723,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       console.log('[Auth] profile loaded:', JSON.stringify(currentProfile));
       if (!currentProfile) {
-        console.error('[Auth] no profile — could not load from DB');
+        console.error('[Auth] no profile — showing error');
         hideLoading();
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('appRoot').style.display = 'none';
@@ -743,37 +743,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadProfile() {
   console.log('[loadProfile] starting for uid:', currentUser.id);
-
-  async function attemptFetch() {
-    return Promise.race([
-      db.from('profiles').select('*').eq('id', currentUser.id).single(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
-    ]);
-  }
-
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       console.log('[loadProfile] attempt', attempt);
-      const result = await attemptFetch();
-      console.log('[loadProfile] query returned:', JSON.stringify(result));
-
+      const result = await Promise.race([
+        db.from('profiles').select('*').eq('id', currentUser.id).single(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
+      ]);
       if (result.error) {
         console.error('[loadProfile] DB error:', result.error.message, result.error.code);
-        // PGRST116 = no row found — profile doesn't exist, don't retry
         if (result.error.code === 'PGRST116') { currentProfile = null; return; }
         if (attempt < 3) { await new Promise(r => setTimeout(r, 1500 * attempt)); continue; }
-        currentProfile = null;
-        return;
+        currentProfile = null; return;
       }
-      if (!result.data) {
-        console.warn('[loadProfile] no data row found');
-        currentProfile = null;
-        return;
-      }
-      currentProfile = result.data;
-      console.log('[loadProfile] success, role:', currentProfile.role);
+      currentProfile = result.data || null;
+      console.log('[loadProfile] success, role:', currentProfile?.role);
       return;
-
     } catch(e) {
       console.error('[loadProfile] attempt', attempt, 'caught:', e.message);
       if (attempt < 3) { await new Promise(r => setTimeout(r, 1500 * attempt)); continue; }
@@ -783,33 +768,27 @@ async function loadProfile() {
 }
 
 // ================================================================
-// BOOT APP — called after successful auth
+// BOOT APP
 // ================================================================
 async function bootApp() {
   try {
-    console.log('[Boot] 1 - start, role:', currentProfile?.role);
+    console.log('[Boot] start, role:', currentProfile?.role);
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
-    console.log('[Boot] 2 - app visible');
 
     document.getElementById('headerUserName').textContent = currentProfile?.full_name || currentProfile?.email || '';
     const rb = document.getElementById('headerRoleBadge');
     rb.textContent = (currentProfile?.role || 'staff').charAt(0).toUpperCase() + (currentProfile?.role || 'staff').slice(1);
     rb.className = 'user-role-badge role-' + (currentProfile?.role || 'staff');
-    console.log('[Boot] 3 - header set');
 
     const role = currentProfile?.role;
-    const showTabs = (ids) => ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('hidden');
-    });
+    const showTabs = ids => ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); });
 
     if (role === 'admin' || role === 'manager') {
       showTabs(['tab-dashboard','tab-timesheets','tab-staff','tab-locations','tab-users','tab-audit']);
     } else {
       showTabs(['tab-dashboard','tab-timesheets']);
     }
-    console.log('[Boot] 4 - tabs set for role:', role);
 
     if (!isAdminOrManager()) {
       const sw = document.getElementById('staffSelectWrap');
@@ -821,38 +800,33 @@ async function bootApp() {
       if (sd) sd.textContent = currentProfile?.full_name || currentProfile?.email;
       if (fw) fw.style.display = 'none';
     }
-    console.log('[Boot] 5 - staff form configured');
 
     const adminOpt = document.getElementById('inviteAdminOpt');
     if (adminOpt && !isAdmin()) adminOpt.style.display = 'none';
 
     showLoading();
-    console.log('[Boot] 6 - loading staff and locations...');
     try {
       await Promise.race([
         Promise.all([loadStaff(), loadLocations()]),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Data load timed out')), 15000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Data load timed out after 15s')), 15000))
       ]);
     } catch(e) {
-      console.warn('[Boot] loadStaff/loadLocations issue:', e.message, '— continuing anyway');
+      console.warn('[Boot] initial data load issue:', e.message, '— continuing');
     } finally {
       hideLoading();
     }
-    console.log('[Boot] 7 - staff:', staffList.length, 'locations:', locationList.length);
 
-    console.log('[Boot] 8 - adding shift row...');
     addShiftRow();
-    console.log('[Boot] 9 - switching page...');
     switchPage('timesheets');
-    console.log('[Boot] 10 - COMPLETE');
 
     const now = new Date();
     document.getElementById('dashFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     document.getElementById('dashTo').value = now.toISOString().split('T')[0];
+    console.log('[Boot] complete');
 
   } catch(e) {
     hideLoading();
-    console.error('[Boot] CRASHED at:', e.message, e.stack);
+    console.error('[Boot] crashed:', e.message, e.stack);
     showToast('App failed to load: ' + e.message);
   }
 }
@@ -868,12 +842,12 @@ function switchPage(p) {
   if (page) page.classList.add('active');
   if (tab)  tab.classList.add('active');
 
-  if (p === 'timesheets')  { populateLocFilter(); renderRecords().catch(e => { hideLoading(); console.error('renderRecords:', e); }); }
-  if (p === 'staff')       renderStaffGrid();
-  if (p === 'locations')   renderLocGrid();
-  if (p === 'dashboard')   { populateDashFilters(); renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
-  if (p === 'users')       renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); });
-  if (p === 'audit')       renderAuditLog().catch(e => { hideLoading(); console.error('renderAuditLog:', e); });
+  if (p === 'timesheets') { populateLocFilter(); renderRecords().catch(e => { hideLoading(); console.error('renderRecords:', e); }); }
+  if (p === 'staff')      renderStaffGrid();
+  if (p === 'locations')  renderLocGrid();
+  if (p === 'dashboard')  { populateDashFilters(); renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
+  if (p === 'users')      renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); });
+  if (p === 'audit')      renderAuditLog().catch(e => { hideLoading(); console.error('renderAuditLog:', e); });
 }
 
 // ================================================================
@@ -906,32 +880,43 @@ function rebuildStaffSelect() {
 }
 
 async function addStaff() {
+  const btn   = document.querySelector('#page-staff .btn-primary');
   const first = document.getElementById('newFirst').value.trim();
   const last  = document.getElementById('newLast').value.trim();
   const role  = document.getElementById('newRole').value.trim();
   if (!first && !last) { showToast('Please enter at least a first or last name'); return; }
   const name = [first, last].filter(Boolean).join(' ');
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding...'; }
   showLoading();
-  const { error } = await db.from('staff').insert({ name, role: role || null });
-  hideLoading();
-  if (error) { showToast('Error: ' + error.message); return; }
-  document.getElementById('newFirst').value = '';
-  document.getElementById('newLast').value  = '';
-  document.getElementById('newRole').value  = '';
-  await loadStaff();
-  renderStaffGrid();
-  showToast('Staff member added');
+  try {
+    const { error } = await db.from('staff').insert({ name, role: role || null });
+    if (error) { showToast('Error: ' + error.message); return; }
+    document.getElementById('newFirst').value = '';
+    document.getElementById('newLast').value  = '';
+    document.getElementById('newRole').value  = '';
+    await loadStaff();
+    renderStaffGrid();
+    showToast('Staff member added');
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = 'Add Staff Member'; }
+  }
 }
 
 async function deleteStaff(id) {
-  showConfirm('Remove Staff Member', 'This cannot be undone.', async () => {
+  const member = staffList.find(s => s.id === id);
+  const name = member?.name || 'this staff member';
+  showConfirm('Remove Staff Member', `Remove ${name}? All their timesheet records will also be permanently deleted.`, async () => {
     showLoading();
-    const { error } = await db.from('staff').delete().eq('id', id);
-    hideLoading();
-    if (error) { showToast('Error: ' + error.message); return; }
-    await loadStaff();
-    renderStaffGrid();
-    showToast('Staff member removed');
+    try {
+      const { error } = await db.from('staff').delete().eq('id', id);
+      if (error) { showToast('Error: ' + error.message); return; }
+      await loadStaff();
+      renderStaffGrid();
+      showToast('Staff member removed');
+    } finally {
+      hideLoading();
+    }
   });
 }
 
@@ -1005,27 +990,38 @@ function populateDashFilters() {
 }
 
 async function addLocation() {
+  const btn  = document.querySelector('#page-locations .btn-primary');
   const name = document.getElementById('newLocName').value.trim();
   if (!name) { showToast('Please enter a location name'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding...'; }
   showLoading();
-  const { error } = await db.from('locations').insert({ name });
-  hideLoading();
-  if (error) { showToast('Error: ' + error.message); return; }
-  document.getElementById('newLocName').value = '';
-  await loadLocations();
-  renderLocGrid();
-  showToast('Location added');
+  try {
+    const { error } = await db.from('locations').insert({ name });
+    if (error) { showToast('Error: ' + error.message); return; }
+    document.getElementById('newLocName').value = '';
+    await loadLocations();
+    renderLocGrid();
+    showToast('Location added');
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = 'Add Location'; }
+  }
 }
 
 async function deleteLocation(id) {
-  showConfirm('Remove Location', 'This cannot be undone.', async () => {
+  const loc = locationList.find(l => l.id === id);
+  const name = loc?.name || 'this location';
+  showConfirm('Remove Location', `Remove "${name}"? Existing timesheet records will keep the location name in historical exports but future records will not be assignable to it.`, async () => {
     showLoading();
-    const { error } = await db.from('locations').delete().eq('id', id);
-    hideLoading();
-    if (error) { showToast('Error: ' + error.message); return; }
-    await loadLocations();
-    renderLocGrid();
-    showToast('Location removed');
+    try {
+      const { error } = await db.from('locations').delete().eq('id', id);
+      if (error) { showToast('Error: ' + error.message); return; }
+      await loadLocations();
+      renderLocGrid();
+      showToast('Location removed');
+    } finally {
+      hideLoading();
+    }
   });
 }
 
@@ -1180,52 +1176,44 @@ function getRowData() {
     const net       = calcNetHours(start, end, breakMins);
     const st        = breakStatus(start, end, breakMins);
     return { date, start_time: start, end_time: end, location_id: loc_id, break_mins: breakMins,
-      required_break_mins: req, net_hours: net, break_warning: st?.type !== 'ok' };
-  }).filter(r => r.date && r.start_time && r.end_time);
+      required_break_mins: req, net_hours: net, break_warning: st != null && st.type !== 'ok' };
+  }).filter(r => r.date && r.start_time && r.end_time && (toMins(r.end_time) > toMins(r.start_time)));
 }
 
 // ================================================================
 // TIMESHEET SAVE
 // ================================================================
 async function saveEntry() {
-  let staff_id, staff_name;
+  const btn = document.querySelector('#page-timesheets .btn-primary[onclick="saveEntry()"]');
+  let staff_id;
 
   if (isAdminOrManager()) {
     const sel = document.getElementById('staffSelect');
     if (!sel.value) { showToast('Please select a staff member'); return; }
     staff_id = sel.value;
-    const s  = staffList.find(x => x.id === staff_id);
-    staff_name = s?.name || '';
   } else {
-    // For staff users, we look up their linked staff record
     const linked = staffList.find(s => s.user_id === currentUser.id);
-    if (!linked) {
-      showToast('Your account is not linked to a staff member. Please contact an admin.');
-      return;
-    }
-    staff_id   = linked.id;
-    staff_name = linked.name;
+    if (!linked) { showToast('Your account is not linked to a staff member. Please contact an admin.'); return; }
+    staff_id = linked.id;
   }
 
   const shifts = getRowData();
-  if (!shifts.length) { showToast('Please add at least one shift row'); return; }
+  if (!shifts.length) { showToast('Please add at least one valid shift row'); return; }
 
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
   showLoading();
-  // Insert each shift as a separate row
-  const rows = shifts.map(s => ({
-    ...s,
-    staff_id,
-    created_by: currentUser.id
-  }));
-
-  const { error } = await db.from('timesheets').insert(rows);
-  hideLoading();
-  if (error) { showToast('Error saving: ' + error.message); return; }
-
-  const hasWarning = shifts.some(s => s.break_warning);
-  resetForm();
-  await renderRecords();
-  showToast(hasWarning ? 'Saved — break violations flagged' : 'Timesheet saved');
+  try {
+    const rows = shifts.map(s => ({ ...s, staff_id, created_by: currentUser.id }));
+    const { error } = await db.from('timesheets').insert(rows);
+    if (error) { showToast('Error saving: ' + error.message); return; }
+    const hasWarning = shifts.some(s => s.break_warning);
+    resetForm();
+    showToast(hasWarning ? 'Saved — break violations flagged' : 'Timesheet saved');
+    renderRecords().catch(e => console.error('renderRecords after save:', e));
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Timesheet'; }
+  }
 }
 
 function resetForm() {
@@ -1252,11 +1240,11 @@ async function renderRecords() {
       staff:staff_id ( id, name ),
       location:location_id ( id, name ),
       created_by_profile:created_by ( id, full_name )
-    `)
+    `, { count: 'exact' })
     .order('date', { ascending: false })
-    .order('start_time', { ascending: false });
+    .order('start_time', { ascending: false })
+    .limit(500);
 
-  // RLS handles record visibility; we add extra client filters for convenience
   const fn = document.getElementById('filterName')?.value.trim().toLowerCase();
   const fl = document.getElementById('filterLoc')?.value;
   const ff = document.getElementById('filterFrom')?.value;
@@ -1265,7 +1253,7 @@ async function renderRecords() {
   if (ff) query = query.gte('date', ff);
   if (ft) query = query.lte('date', ft);
 
-  const { data: recs, error } = await query;
+  const { data: recs, error, count } = await query;
   if (error) { cont.innerHTML = '<div class="empty-state"><p>Error loading records: ' + esc(error.message) + '</p></div>'; return; }
 
   let filtered = recs || [];
@@ -1290,10 +1278,10 @@ async function renderRecords() {
       : '<span class="break-flag ok">✓ OK</span>';
 
     const amendedHtml = r.amended_at
-      ? `<span class="amended-badge" title="${esc(r.amendment_reason || '')}" onclick="showAmendReason(this, '${esc(r.amendment_reason || 'No reason recorded')}')">✏ Amended</span>`
+      ? `<span class="amended-badge" title="${esc(r.amendment_reason || '')}" onclick="showAmendReason('${esc(r.amendment_reason || 'No reason recorded')}')">✏ Amended</span>`
       : '';
 
-    const canEdit = isAdminOrManager();
+    const canEdit   = isAdminOrManager();
     const canDelete = isAdmin();
 
     rows += `<tr>
@@ -1313,21 +1301,20 @@ async function renderRecords() {
     </tr>`;
   });
 
-  // Determine column headers based on role
   const nameCol = isAdminOrManager() ? '<th>Name</th>' : '';
   cont.innerHTML = `<div style="overflow-x:auto"><table class="rec-table">
     <thead><tr>${nameCol}<th>Location</th><th>Date</th><th>Start</th><th>End</th><th>Break</th><th>Req.</th><th>Net Hrs</th><th>Status</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 
-  summ.innerHTML = `<span>Showing <strong>${filtered.length}</strong> ${filtered.length === 1 ? 'entry' : 'entries'}</span>
+  const overLimit = count > 500;
+  summ.innerHTML = `<span>Showing <strong>${filtered.length}</strong> ${filtered.length === 1 ? 'entry' : 'entries'}${overLimit ? ' (limited to 500 — use date filters to narrow)' : ''}</span>
     <span>Total net hours: <strong>${totalNet.toFixed(2)}h</strong></span>
     ${totalWarn > 0
       ? `<span style="color:var(--flag-red);font-weight:600">⚠ ${totalWarn} break violation${totalWarn > 1 ? 's' : ''}</span>`
       : '<span style="color:var(--flag-green)">✓ No violations</span>'}`;
 }
 
-function showAmendReason(el, reason) {
-  // Repurpose the confirm modal to display the reason
+function showAmendReason(reason) {
   document.getElementById('modalTitle').textContent = 'Amendment Reason';
   document.getElementById('modalMsg').textContent   = reason;
   document.getElementById('modalConfirmBtn').style.display = 'none';
@@ -1340,58 +1327,65 @@ function showAmendReason(el, reason) {
 async function deleteRecord(id) {
   showConfirm('Delete Entry', 'Delete this timesheet entry? This cannot be undone.', async () => {
     showLoading();
-    const { error } = await db.from('timesheets').delete().eq('id', id);
-    hideLoading();
-    if (error) { showToast('Error: ' + error.message); return; }
-    await renderRecords();
-    showToast('Entry deleted');
+    try {
+      const { error } = await db.from('timesheets').delete().eq('id', id);
+      if (error) { showToast('Error: ' + error.message); return; }
+      showToast('Entry deleted');
+      renderRecords().catch(e => console.error('renderRecords after delete:', e));
+    } finally {
+      hideLoading();
+    }
   });
 }
 
 // ================================================================
-// EDIT SHIFT (manager/admin) — requires amendment reason
+// EDIT SHIFT (manager/admin)
 // ================================================================
 let _editShiftId = null;
 let _editPendingFn = null;
+let _editShiftLoading = false;
 
 async function editShift(id) {
-  // Load the record
-  const { data: r, error } = await db.from('timesheets')
-    .select('*, location:location_id(id,name)')
-    .eq('id', id)
-    .single();
-  if (error || !r) { showToast('Could not load record'); return; }
+  if (_editShiftLoading) return;
+  _editShiftLoading = true;
+  showLoading();
+  try {
+    const { data: r, error } = await db.from('timesheets')
+      .select('*, location:location_id(id,name)')
+      .eq('id', id)
+      .single();
+    if (error || !r) { showToast('Could not load record'); return; }
 
-  _editShiftId = id;
+    _editShiftId = id;
 
-  // Build the edit form inside the modal
-  const locOpts = '<option value="">-- None --</option>' +
-    locationList.map(l => `<option value="${l.id}"${l.id==r.location_id?' selected':''}>${esc(l.name)}</option>`).join('');
+    const locOpts = '<option value="">-- None --</option>' +
+      locationList.map(l => `<option value="${l.id}"${l.id==r.location_id?' selected':''}>${esc(l.name)}</option>`).join('');
+    const timeOpts = (cur) => TIME_OPTS.map(t => `<option value="${t}"${t===cur?' selected':''}>${t}</option>`).join('');
 
-  const timeOpts = (cur) => TIME_OPTS.map(t => `<option value="${t}"${t===cur?' selected':''}>${t}</option>`).join('');
+    document.getElementById('shiftEditTitle').textContent = 'Edit Shift — ' + (r.date || '');
+    document.getElementById('shiftEditBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div class="field-group"><label>Date</label><input type="date" id="editDate" value="${r.date}"></div>
+        <div class="field-group"><label>Location</label><select id="editLoc" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">${locOpts}</select></div>
+        <div class="field-group"><label>Start</label><select id="editStart" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">${timeOpts(r.start_time?.slice(0,5))}</select></div>
+        <div class="field-group"><label>End</label><select id="editEnd" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">${timeOpts(r.end_time?.slice(0,5))}</select></div>
+      </div>
+      <div class="field-group" style="margin-bottom:6px">
+        <label>Break Taken</label>
+        <select id="editBreak" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">
+          ${BREAK_OPTS.map(o => `<option value="${o.v}"${o.v==r.break_mins?' selected':''}>${o.l}</option>`).join('')}
+        </select>
+      </div>`;
 
-  document.getElementById('shiftEditTitle').textContent = 'Edit Shift — ' + (r.date || '');
-  document.getElementById('shiftEditBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-      <div class="field-group"><label>Date</label><input type="date" id="editDate" value="${r.date}"></div>
-      <div class="field-group"><label>Location</label><select id="editLoc" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">${locOpts}</select></div>
-      <div class="field-group"><label>Start</label><select id="editStart" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">${timeOpts(r.start_time?.slice(0,5))}</select></div>
-      <div class="field-group"><label>End</label><select id="editEnd" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">${timeOpts(r.end_time?.slice(0,5))}</select></div>
-    </div>
-    <div class="field-group" style="margin-bottom:6px">
-      <label>Break Taken</label>
-      <select id="editBreak" style="-webkit-appearance:none;appearance:none;padding:8px 11px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:var(--milk)">
-        ${BREAK_OPTS.map(o => `<option value="${o.v}"${o.v==r.break_mins?' selected':''}>${o.l}</option>`).join('')}
-      </select>
-    </div>`;
-
-  document.getElementById('amendReason').value = '';
-  document.getElementById('shiftEditModal').classList.add('open');
+    document.getElementById('amendReason').value = '';
+    document.getElementById('shiftEditModal').classList.add('open');
+  } finally {
+    hideLoading();
+    _editShiftLoading = false;
+  }
 }
 
 document.getElementById('shiftEditSaveBtn').onclick = () => {
-  const reason = ''; // We'll collect the reason in the amend modal
-  // Close shift edit modal, open amend reason modal
   document.getElementById('shiftEditModal').classList.remove('open');
   document.getElementById('amendReason').value = '';
   document.getElementById('amendModal').classList.add('open');
@@ -1400,47 +1394,50 @@ document.getElementById('shiftEditSaveBtn').onclick = () => {
 document.getElementById('amendConfirmBtn').onclick = async () => {
   const reason = document.getElementById('amendReason').value.trim();
   if (!reason) { showToast('Please enter a reason for the amendment'); return; }
+  if (!_editShiftId) { showToast('No record selected'); return; }
 
-  const date      = document.getElementById('editDate').value;
-  const loc_id    = document.getElementById('editLoc').value || null;
-  const start     = document.getElementById('editStart').value;
-  const end       = document.getElementById('editEnd').value;
+  const btn    = document.getElementById('amendConfirmBtn');
+  const date   = document.getElementById('editDate').value;
+  const loc_id = document.getElementById('editLoc').value || null;
+  const start  = document.getElementById('editStart').value;
+  const end    = document.getElementById('editEnd').value;
   const breakMins = parseInt(document.getElementById('editBreak').value) || 0;
-  const gross     = toMins(end) - toMins(start);
-  const req       = gross > 0 ? requiredBreak(gross) : 0;
-  const net       = calcNetHours(start, end, breakMins);
-  const st        = breakStatus(start, end, breakMins);
 
+  if (!date) { showToast('Please enter a date'); return; }
+  if (toMins(end) <= toMins(start)) { showToast('End time must be after start time'); return; }
+
+  const gross = toMins(end) - toMins(start);
+  const req   = gross > 0 ? requiredBreak(gross) : 0;
+  const net   = calcNetHours(start, end, breakMins);
+  const st    = breakStatus(start, end, breakMins);
+
+  btn.disabled = true; btn.textContent = 'Saving...';
   showLoading();
-  const { error } = await db.from('timesheets').update({
-    date,
-    location_id: loc_id,
-    start_time: start,
-    end_time: end,
-    break_mins: breakMins,
-    required_break_mins: req,
-    net_hours: net,
-    break_warning: st?.type !== 'ok',
-    amended_by: currentUser.id,
-    amended_at: new Date().toISOString(),
-    amendment_reason: reason
-  }).eq('id', _editShiftId);
-  hideLoading();
+  try {
+    const { error } = await db.from('timesheets').update({
+      date, location_id: loc_id, start_time: start, end_time: end,
+      break_mins: breakMins, required_break_mins: req, net_hours: net,
+      break_warning: st != null && st.type !== 'ok',
+      amended_by: currentUser.id, amended_at: new Date().toISOString(),
+      amendment_reason: reason
+    }).eq('id', _editShiftId);
 
-  if (error) { showToast('Error saving amendment: ' + error.message); return; }
+    if (error) { showToast('Error saving amendment: ' + error.message); return; }
 
-  // Write audit log
-  await db.from('amendment_log').insert({
-    timesheet_id: _editShiftId,
-    amended_by: currentUser.id,
-    reason,
-    changed_at: new Date().toISOString()
-  });
+    const { error: auditErr } = await db.from('amendment_log').insert({
+      timesheet_id: _editShiftId, amended_by: currentUser.id,
+      reason, changed_at: new Date().toISOString()
+    });
+    if (auditErr) console.error('Audit log insert failed:', auditErr.message);
 
-  document.getElementById('amendModal').classList.remove('open');
-  _editShiftId = null;
-  await renderRecords();
-  showToast('Timesheet amended and audit entry recorded');
+    document.getElementById('amendModal').classList.remove('open');
+    _editShiftId = null;
+    showToast('Timesheet amended and audit entry recorded');
+    renderRecords().catch(e => console.error('renderRecords after amend:', e));
+  } finally {
+    hideLoading();
+    btn.disabled = false; btn.textContent = 'Confirm Amendment';
+  }
 };
 
 function closeShiftEditModal() {
@@ -1455,28 +1452,31 @@ function closeAmendModal() {
 // USER MANAGEMENT (admin + manager)
 // ================================================================
 async function inviteUser() {
-  const email = document.getElementById('inviteEmail').value.trim();
+  const btn   = document.querySelector('#page-users .btn-primary[onclick="inviteUser()"]');
+  const email = document.getElementById('inviteEmail').value.trim().toLowerCase();
   const name  = document.getElementById('inviteName').value.trim();
   const role  = document.getElementById('inviteRole').value;
 
-  if (!email) { showToast('Please enter an email address'); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Please enter a valid email address'); return; }
   if (!name)  { showToast('Please enter a full name'); return; }
   if (role === 'admin' && !isAdmin()) { showToast('Only admins can create admin accounts'); return; }
 
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   showLoading();
-  // Call the Supabase Edge Function to create the user invite
-  const { data, error } = await db.functions.invoke('invite-user', {
-    body: { email, full_name: name, role }
-  });
-  hideLoading();
-
-  if (error) { showToast('Error: ' + error.message); return; }
-  if (data?.error) { showToast('Error: ' + data.error); return; }
-
-  document.getElementById('inviteEmail').value = '';
-  document.getElementById('inviteName').value  = '';
-  await renderUsers();
-  showToast(`Invite sent to ${email}`);
+  try {
+    const { data, error } = await db.functions.invoke('invite-user', {
+      body: { email, full_name: name, role }
+    });
+    if (error) { showToast('Error: ' + error.message); return; }
+    if (data?.error) { showToast('Error: ' + data.error); return; }
+    document.getElementById('inviteEmail').value = '';
+    document.getElementById('inviteName').value  = '';
+    showToast(`Invite sent to ${email}`);
+    renderUsers().catch(e => console.error('renderUsers after invite:', e));
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Invite'; }
+  }
 }
 
 async function renderUsers() {
@@ -1484,18 +1484,27 @@ async function renderUsers() {
   wrap.innerHTML = '<div class="empty-state"><div class="icon" style="font-size:1.5rem">⏳</div><p>Loading...</p></div>';
 
   const { data, error } = await db.from('profiles').select('*').order('full_name');
-  if (error) { wrap.innerHTML = '<div class="empty-state"><p>Error loading users.</p></div>'; return; }
+  if (error) { wrap.innerHTML = '<div class="empty-state"><p>Error loading users: ' + esc(error.message) + '</p></div>'; return; }
   if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>No users found.</p></div>'; return; }
 
-  const canChangeRole   = isAdmin();
-  const canDeactivate   = isAdmin();
+  const canChangeRole = isAdmin();
+  const canDeactivate = isAdmin();
+
+  // Build staff options for the link dropdown (unlinked staff + current link)
+  const linkedUserIds = staffList.filter(s => s.user_id).map(s => s.user_id);
 
   wrap.innerHTML = `<table class="users-table">
     <thead><tr>
-      <th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
+      <th>Name</th><th>Email</th><th>Role</th><th>Linked Staff Record</th><th>Status</th><th>Actions</th>
     </tr></thead>
-    <tbody>${data.map(u => `
-      <tr>
+    <tbody>${data.map(u => {
+      const linkedStaff = staffList.find(s => s.user_id === u.id);
+      // Available: unlinked staff + the one already linked to this user
+      const availableStaff = staffList.filter(s => !s.user_id || s.user_id === u.id);
+      const staffOpts = `<option value="">— Not linked —</option>` +
+        availableStaff.map(s => `<option value="${s.id}"${s.user_id === u.id ? ' selected' : ''}>${esc(s.name)}${s.role ? ' (' + esc(s.role) + ')' : ''}</option>`).join('');
+
+      return `<tr>
         <td><span style="display:inline-flex;align-items:center;gap:8px">
           <span style="width:30px;height:30px;border-radius:50%;background:${avColor(u.full_name||u.email)};display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:white">${initials(u.full_name||u.email)}</span>
           ${esc(u.full_name || '—')}
@@ -1507,34 +1516,68 @@ async function renderUsers() {
               <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
               <option value="admin"   ${u.role==='admin'  ?'selected':''}>Admin</option>
              </select>`
-          : roleLabel(u.role)}</td>
+          : roleLabel(u.role)}
+        </td>
+        <td>
+          ${isAdminOrManager()
+            ? `<select class="role-select" style="min-width:160px" onchange="linkStaffToUser('${u.id}', this.value)">${staffOpts}</select>`
+            : (linkedStaff ? `<span style="font-size:0.82rem">${esc(linkedStaff.name)}</span>` : '<span style="color:var(--text-light);font-size:0.8rem;font-style:italic">None</span>')}
+        </td>
         <td><span style="font-size:0.78rem;color:${u.is_active?'var(--flag-green)':'var(--text-light)'}">${u.is_active ? '● Active' : '○ Inactive'}</span></td>
-        <td style="display:flex;gap:6px">
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
           ${canDeactivate && u.id !== currentUser.id
             ? `<button class="btn ${u.is_active?'btn-danger-outline':'btn-outline'}" style="padding:4px 10px;font-size:0.76rem"
                 onclick="toggleUserActive('${u.id}', ${u.is_active})">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>`
             : ''}
         </td>
-      </tr>`).join('')}</tbody></table>`;
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+async function linkStaffToUser(userId, staffId) {
+  showLoading();
+  try {
+    // First, unlink any staff record that was previously linked to this user
+    const { error: clearErr } = await db.from('staff').update({ user_id: null }).eq('user_id', userId);
+    if (clearErr) { showToast('Error unlinking previous record: ' + clearErr.message); return; }
+
+    // If a new staffId is selected, link it
+    if (staffId) {
+      const { error: linkErr } = await db.from('staff').update({ user_id: userId }).eq('id', staffId);
+      if (linkErr) { showToast('Error linking staff: ' + linkErr.message); return; }
+    }
+
+    await loadStaff(); // refresh local cache
+    showToast(staffId ? 'Staff record linked' : 'Staff link removed');
+    renderUsers().catch(e => console.error('renderUsers after link:', e));
+  } finally {
+    hideLoading();
+  }
 }
 
 async function updateUserRole(userId, newRole) {
   if (!isAdmin()) { showToast('Only admins can change roles'); return; }
   showLoading();
-  const { error } = await db.from('profiles').update({ role: newRole }).eq('id', userId);
-  hideLoading();
-  if (error) { showToast('Error: ' + error.message); return; }
-  showToast('Role updated');
-  await renderUsers();
+  try {
+    const { error } = await db.from('profiles').update({ role: newRole }).eq('id', userId);
+    if (error) { showToast('Error: ' + error.message); return; }
+    showToast('Role updated');
+    renderUsers().catch(e => console.error('renderUsers after role update:', e));
+  } finally {
+    hideLoading();
+  }
 }
 
 async function toggleUserActive(userId, currentlyActive) {
   showLoading();
-  const { error } = await db.from('profiles').update({ is_active: !currentlyActive }).eq('id', userId);
-  hideLoading();
-  if (error) { showToast('Error: ' + error.message); return; }
-  showToast(currentlyActive ? 'User deactivated' : 'User reactivated');
-  await renderUsers();
+  try {
+    const { error } = await db.from('profiles').update({ is_active: !currentlyActive }).eq('id', userId);
+    if (error) { showToast('Error: ' + error.message); return; }
+    showToast(currentlyActive ? 'User deactivated' : 'User reactivated');
+    renderUsers().catch(e => console.error('renderUsers after toggle:', e));
+  } finally {
+    hideLoading();
+  }
 }
 
 // ================================================================
@@ -1600,7 +1643,10 @@ async function renderDashboard() {
   if (fs) query = query.eq('staff_id', fs);
 
   const { data: shifts, error } = await query;
-  if (error) { console.error(error); return; }
+  if (error) {
+    document.getElementById('kpiRow').innerHTML = `<div style="color:var(--flag-red);padding:12px;font-size:0.85rem">Error loading dashboard: ${esc(error.message)}</div>`;
+    return;
+  }
   const allShifts = shifts || [];
 
   const totalHours  = allShifts.reduce((a, s) => a + (parseFloat(s.net_hours) || 0), 0);
@@ -1688,23 +1734,39 @@ async function renderDashboard() {
 // EXPORT CSV
 // ================================================================
 async function exportCSV() {
+  const btn = document.querySelector('#page-timesheets .btn-outline[onclick="exportCSV()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Exporting...'; }
   showLoading();
-  const { data: recs, error } = await db.from('timesheets')
-    .select('*, staff:staff_id(name), location:location_id(name)')
-    .order('date', { ascending: false });
-  hideLoading();
-  if (error || !recs?.length) { showToast('No records to export'); return; }
+  try {
+    const fl = document.getElementById('filterLoc')?.value;
+    const ff = document.getElementById('filterFrom')?.value;
+    const ft = document.getElementById('filterTo')?.value;
+    let query = db.from('timesheets')
+      .select('*, staff:staff_id(name), location:location_id(name)')
+      .order('date', { ascending: false })
+      .limit(5000);
+    if (fl) query = query.eq('location_id', fl);
+    if (ff) query = query.gte('date', ff);
+    if (ft) query = query.lte('date', ft);
+    const { data: recs, error } = await query;
+    if (error) { showToast('Export error: ' + error.message); return; }
+    if (!recs?.length) { showToast('No records to export for the current filter'); return; }
 
-  let csv = 'Name,Location,Date,Start,End,Break Taken (mins),Break Required (mins),Net Hours,Break Violation\n';
-  recs.forEach(r => {
-    csv += `"${r.staff?.name||''}","${r.location?.name||''}",${r.date},${r.start_time?.slice(0,5)||''},${r.end_time?.slice(0,5)||''},${r.break_mins||0},${r.required_break_mins||0},${r.net_hours?parseFloat(r.net_hours).toFixed(2):''},${r.break_warning?'YES':'No'}\n`;
-  });
+    let csv = 'Name,Location,Date,Start,End,Break Taken (mins),Break Required (mins),Net Hours,Break Violation\n';
+    recs.forEach(r => {
+      const safeCsv = v => `"${String(v||'').replace(/"/g,'""')}"`;
+      csv += `${safeCsv(r.staff?.name)},${safeCsv(r.location?.name)},${r.date},${r.start_time?.slice(0,5)||''},${r.end_time?.slice(0,5)||''},${r.break_mins||0},${r.required_break_mins||0},${r.net_hours?parseFloat(r.net_hours).toFixed(2):''},${r.break_warning?'YES':'No'}\n`;
+    });
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `gwoc-timesheets-${today()}.csv`;
-  a.click();
-  showToast('CSV downloaded');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `gwoc-timesheets-${today()}.csv`;
+    a.click();
+    showToast(`Exported ${recs.length} records`);
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ Export CSV'; }
+  }
 }
 
 // ================================================================
@@ -1714,7 +1776,10 @@ let _mc = null;
 function showConfirm(title, msg, cb) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalMsg').textContent   = msg;
-  document.getElementById('modalConfirmBtn').style.display = '';
+  const confirmBtn = document.getElementById('modalConfirmBtn');
+  confirmBtn.style.display = '';
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = 'Delete';
   _mc = cb;
   document.getElementById('confirmModal').classList.add('open');
 }
@@ -1722,7 +1787,16 @@ function closeModal() {
   document.getElementById('confirmModal').classList.remove('open');
   _mc = null;
 }
-document.getElementById('modalConfirmBtn').onclick = () => { if (_mc) _mc(); closeModal(); };
+document.getElementById('modalConfirmBtn').onclick = async () => {
+  const btn = document.getElementById('modalConfirmBtn');
+  if (!_mc) { closeModal(); return; }
+  btn.disabled = true;
+  btn.textContent = 'Working...';
+  const cb = _mc;
+  _mc = null;
+  document.getElementById('confirmModal').classList.remove('open');
+  try { await cb(); } catch(e) { console.error('Confirm callback error:', e); showToast('Operation failed: ' + e.message); }
+};
 document.getElementById('confirmModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 
 // Keyboard support
