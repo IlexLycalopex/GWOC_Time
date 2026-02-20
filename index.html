@@ -714,15 +714,27 @@ document.addEventListener('DOMContentLoaded', () => {
       event === 'INITIAL_SESSION'
     )) {
       if (event === 'TOKEN_REFRESHED' && currentUser) return;
+      console.log('[Auth] loading profile for', session.user.email);
       currentUser = session.user;
-      await loadProfile();
+      try {
+        await loadProfile();
+      } catch(e) {
+        console.error('[Auth] loadProfile threw:', e);
+      }
+      console.log('[Auth] profile loaded:', JSON.stringify(currentProfile));
       if (!currentProfile) {
+        console.error('[Auth] no profile — showing error');
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('appRoot').style.display = 'none';
         showAuthErr('signInErr', 'Account found but no profile record exists. Ask your administrator to run the SQL setup script.');
         return;
       }
-      bootApp();
+      console.log('[Auth] calling bootApp...');
+      try {
+        await bootApp();
+      } catch(e) {
+        console.error('[Auth] bootApp threw:', e);
+      }
     }
   });
 
