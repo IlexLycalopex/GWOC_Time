@@ -766,63 +766,67 @@ async function loadProfile() {
 // BOOT APP — called after successful auth
 // ================================================================
 async function bootApp() {
-  document.getElementById('authScreen').style.display = 'none';
-  document.getElementById('appRoot').style.display = 'block';
-
-  // Header user info
-  document.getElementById('headerUserName').textContent = currentProfile?.full_name || currentProfile?.email || '';
-  const rb = document.getElementById('headerRoleBadge');
-  rb.textContent = (currentProfile?.role || 'staff').charAt(0).toUpperCase() + (currentProfile?.role || 'staff').slice(1);
-  rb.className = `user-role-badge role-${currentProfile?.role || 'staff'}`;
-
-  // Show/hide nav tabs based on role
-  const role = currentProfile?.role;
-  const showTabs = (ids) => ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove('hidden');
-  });
-
-  if (role === 'admin') {
-    showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
-  } else if (role === 'manager') {
-    showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
-  }
-  // staff only sees timesheets tab (already visible) and dashboard
-  if (role === 'staff') {
-    showTabs(['tab-dashboard']);
-  }
-
-  // Timesheet form: staff see their own name only
-  if (!isAdminOrManager()) {
-    document.getElementById('staffSelectWrap').style.display = 'none';
-    document.getElementById('staffNameReadonly').style.display = 'block';
-    document.getElementById('staffNameDisplay').textContent = currentProfile?.full_name || currentProfile?.email;
-    document.getElementById('filterNameWrap').style.display = 'none';
-  }
-
-  // Admins can assign admin role; managers cannot
-  const adminOpt = document.getElementById('inviteAdminOpt');
-  if (adminOpt && !isAdmin()) adminOpt.style.display = 'none';
-
-  showLoading();
   try {
+    console.log('[Boot] 1 - start, role:', currentProfile?.role);
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    console.log('[Boot] 2 - app visible');
+
+    document.getElementById('headerUserName').textContent = currentProfile?.full_name || currentProfile?.email || '';
+    const rb = document.getElementById('headerRoleBadge');
+    rb.textContent = (currentProfile?.role || 'staff').charAt(0).toUpperCase() + (currentProfile?.role || 'staff').slice(1);
+    rb.className = 'user-role-badge role-' + (currentProfile?.role || 'staff');
+    console.log('[Boot] 3 - header set');
+
+    const role = currentProfile?.role;
+    const showTabs = (ids) => ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
+
+    if (role === 'admin' || role === 'manager') {
+      showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
+    } else {
+      showTabs(['tab-dashboard']);
+    }
+    console.log('[Boot] 4 - tabs set for role:', role);
+
+    if (!isAdminOrManager()) {
+      const sw = document.getElementById('staffSelectWrap');
+      const sr = document.getElementById('staffNameReadonly');
+      const sd = document.getElementById('staffNameDisplay');
+      const fw = document.getElementById('filterNameWrap');
+      if (sw) sw.style.display = 'none';
+      if (sr) sr.style.display = 'block';
+      if (sd) sd.textContent = currentProfile?.full_name || currentProfile?.email;
+      if (fw) fw.style.display = 'none';
+    }
+    console.log('[Boot] 5 - staff form configured');
+
+    const adminOpt = document.getElementById('inviteAdminOpt');
+    if (adminOpt && !isAdmin()) adminOpt.style.display = 'none';
+
+    showLoading();
+    console.log('[Boot] 6 - loading staff and locations...');
     await Promise.all([loadStaff(), loadLocations()]);
+    console.log('[Boot] 7 - staff:', staffList.length, 'locations:', locationList.length);
+    hideLoading();
+
+    console.log('[Boot] 8 - adding shift row...');
+    addShiftRow();
+    console.log('[Boot] 9 - switching page...');
+    switchPage('timesheets');
+    console.log('[Boot] 10 - COMPLETE');
+
+    const now = new Date();
+    document.getElementById('dashFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    document.getElementById('dashTo').value = now.toISOString().split('T')[0];
+
   } catch(e) {
     hideLoading();
-    console.error('Data load error:', e);
-    showToast('Database error — check Supabase setup. See console for details.');
-    // Still show the app — tables may just be empty
+    console.error('[Boot] CRASHED at:', e.message, e.stack);
+    showToast('App failed to load: ' + e.message);
   }
-  hideLoading();
-
-  // Init page
-  addShiftRow();
-  switchPage('timesheets');
-
-  // Dashboard defaults
-  const now = new Date();
-  document.getElementById('dashFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  document.getElementById('dashTo').value = now.toISOString().split('T')[0];
 }
 
 // ================================================================
