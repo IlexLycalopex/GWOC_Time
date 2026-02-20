@@ -178,6 +178,10 @@ table.rec-table{width:100%;border-collapse:collapse}
 /* TOAST + MODAL */
 .toast{position:fixed;bottom:22px;right:22px;background:var(--ink);color:var(--cream);padding:10px 17px;border-radius:8px;font-size:0.85rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.28);transform:translateY(70px);opacity:0;transition:all 0.3s ease;z-index:9999;max-width:320px}
 .toast.show{transform:translateY(0);opacity:1}
+@media(max-width:700px){
+  .toast{right:50%;transform:translateX(50%) translateY(70px);max-width:calc(100vw - 32px);bottom:16px;font-size:0.9rem;text-align:center}
+  .toast.show{transform:translateX(50%) translateY(0)}
+}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:500}
 .modal-overlay.open{display:flex}
 .modal{background:white;border-radius:13px;padding:26px;max-width:420px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.25)}
@@ -199,12 +203,81 @@ table.rec-table{width:100%;border-collapse:collapse}
 .audit-reason{font-size:0.78rem;color:var(--flag-amber);margin-top:3px;font-style:italic}
 
 @media(max-width:720px){
-  header{padding:0 12px;flex-wrap:wrap}
-  nav{margin-left:0;order:3;width:100%;border-top:1px solid rgba(255,255,255,0.06)}
-  .nav-tab{padding:0 11px;font-size:0.78rem}
-  main{padding:14px 10px}
+  header{padding:0 10px;flex-wrap:wrap}
+  .logo{padding:10px 0}
+  .logo-text h1{font-size:1.05rem}
+  .logo-text span{display:none}
+  .swallow-icon{width:30px;height:30px}
+  nav{margin-left:0;order:3;width:100%;border-top:1px solid rgba(255,255,255,0.06);overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .nav-tab{padding:0 10px;font-size:0.72rem;min-height:40px}
+  .header-user{font-size:0.72rem}
+  #headerUserName{display:none}
+  main{padding:10px 8px}
+  .card{border-radius:10px;margin-bottom:14px}
+  .card-header{padding:11px 14px}
   .card-body{padding:14px}
-  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:10px}
+  .kpi-value{font-size:1.3rem}
+  .dash-cols{grid-template-columns:1fr}
+  .dash-filters{flex-direction:column;gap:10px;padding:12px}
+  .dash-filters .field-group{min-width:0;width:100%}
+  .dash-filters .btn{width:100%}
+  .entity-add-form{flex-direction:column}
+  .entity-add-form .field-group{width:100%}
+  .entity-add-form .btn{width:100%;justify-content:center;padding:11px}
+  .form-actions{flex-direction:column-reverse;gap:10px}
+  .form-actions .btn{width:100%;padding:13px;font-size:0.9rem;text-align:center;justify-content:center}
+  .add-row-btn{width:100%;justify-content:center;padding:12px;margin-top:8px}
+  .break-rule-note{font-size:0.73rem}
+  .rec-controls{padding:10px 12px;gap:8px}
+  .rec-controls>div{width:100%}
+  .rec-controls input,.rec-controls select{width:100%;font-size:1rem;padding:9px 10px}
+  #filterNameWrap,.rec-controls [style*="margin-left:auto"]{width:100%}
+  .rec-controls [style*="margin-left:auto"] .btn{width:100%;text-align:center}
+  .users-table{font-size:0.78rem}
+  .users-table th,.users-table td{padding:7px 8px}
+  .modal{padding:20px 16px}
+}
+/* Shift table — hide on mobile; shift cards shown instead */
+@media(max-width:700px){
+  .shifts-table-wrap{display:none}
+  .shift-cards-wrap{display:block}
+}
+@media(min-width:701px){
+  .shifts-table-wrap{display:block}
+  .shift-cards-wrap{display:none}
+}
+/* Shift cards (mobile layout) */
+.shift-card{background:var(--chalk);border:1.5px solid var(--steam);border-radius:10px;padding:12px;margin-bottom:10px;position:relative}
+.shift-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.shift-card-grid.three{grid-template-columns:1fr 1fr 1fr}
+.shift-card .field-group label{font-size:0.62rem}
+.shift-card .field-group select,
+.shift-card .field-group input[type="date"]{font-size:1rem;padding:10px 9px;border:1.5px solid var(--steam);border-radius:7px;background:white;color:var(--text-dark);width:100%;-webkit-appearance:none;appearance:none;font-family:'DM Sans',sans-serif}
+.shift-card .field-group select:focus,
+.shift-card .field-group input:focus{outline:none;border-color:var(--accent)}
+.shift-card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--steam);margin-top:4px}
+.shift-card-hours{font-weight:700;font-size:1rem;color:var(--deep)}
+.shift-card-del{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:1.2rem;padding:6px 10px;border-radius:6px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+.shift-card-del:hover{color:var(--flag-red);background:rgba(192,57,43,0.07)}
+/* Records table — card view on mobile */
+@media(max-width:700px){
+  .rec-table thead{display:none}
+  .rec-table tbody tr{display:block;background:white;border:1.5px solid var(--steam);border-radius:9px;margin-bottom:10px;padding:12px 14px}
+  .rec-table tbody tr:hover{background:white}
+  .rec-table td{display:block;padding:3px 0;font-size:0.84rem;border-bottom:none}
+  .rec-table td:before{content:attr(data-label);font-size:0.62rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:1px}
+  .rec-table td[data-label=""][style*="display:flex"]{display:flex !important;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--steam)}
+  .rec-table td:nth-child(1){font-size:0.95rem;padding-bottom:6px;margin-bottom:4px;border-bottom:1px solid var(--steam)}
+}
+/* Touch-friendly controls across the board on mobile */
+@media(max-width:700px){
+  .btn{min-height:44px;display:flex;align-items:center;justify-content:center}
+  .logout-btn{min-height:36px}
+  input,select{min-height:44px;font-size:1rem !important}
+  .auth-field input{font-size:1rem;padding:13px}
+  .role-select{min-height:40px;font-size:0.9rem}
+  .entity-del,.del-row-btn{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
 }
 </style>
 </head>
@@ -334,6 +407,7 @@ table.rec-table{width:100%;border-collapse:collapse}
           <div style="padding:8px 11px;background:var(--chalk);border-radius:7px;font-size:0.88rem;font-weight:600;color:var(--deep)" id="staffNameDisplay"></div>
         </div>
       </div>
+      <div class="shifts-table-wrap">
       <table class="shifts-table">
         <thead><tr>
           <th style="width:112px">Date</th>
@@ -347,6 +421,8 @@ table.rec-table{width:100%;border-collapse:collapse}
         </tr></thead>
         <tbody id="shiftRows"></tbody>
       </table>
+      </div>
+      <div class="shift-cards-wrap" id="shiftCards"></div>
       <button class="add-row-btn" onclick="addShiftRow()"><span style="font-size:1.1rem;font-weight:700">+</span> Add Shift Row</button>
       <div class="break-rule-note">
         <strong>Break rules:</strong> A 15-minute unpaid break is required for every complete 6-hour block worked.
@@ -1128,9 +1204,11 @@ function breakStatus(start, end, breakMins) {
 }
 
 // ================================================================
-// SHIFT ROW BUILDER
+// SHIFT ROW / CARD BUILDER — adapts to screen width
 // ================================================================
 let rowId = 0;
+function isMobile() { return window.innerWidth <= 700; }
+
 function mkSel(cls, opts, val, fn) {
   const sel = document.createElement('select');
   sel.className = cls;
@@ -1146,7 +1224,15 @@ function mkSel(cls, opts, val, fn) {
 }
 
 function addShiftRow(data = {}) {
-  const id     = rowId++;
+  const id = rowId++;
+  if (isMobile()) {
+    addShiftCard(id, data);
+  } else {
+    addShiftTableRow(id, data);
+  }
+}
+
+function addShiftTableRow(id, data = {}) {
   const todayD = today();
   const tbody  = document.getElementById('shiftRows');
   const tr     = document.createElement('tr');
@@ -1155,8 +1241,7 @@ function addShiftRow(data = {}) {
 
   const td1 = document.createElement('td');
   const di  = document.createElement('input');
-  di.type   = 'date';
-  di.value  = data.date || todayD;
+  di.type   = 'date'; di.value = data.date || todayD;
   di.onchange = () => updateRow(id);
   td1.appendChild(di); tr.appendChild(td1);
 
@@ -1185,11 +1270,70 @@ function addShiftRow(data = {}) {
   const td8 = document.createElement('td');
   const db2 = document.createElement('button');
   db2.className = 'del-row-btn'; db2.textContent = '×'; db2.title = 'Remove row';
-  db2.onclick = () => tr.remove();
+  db2.onclick = () => { tr.remove(); };
   td8.appendChild(db2); tr.appendChild(td8);
 
   tbody.appendChild(tr);
   updateRow(id);
+}
+
+function addShiftCard(id, data = {}) {
+  const todayD = today();
+  const wrap   = document.getElementById('shiftCards');
+  const card   = document.createElement('div');
+  card.className = 'shift-card';
+  card.dataset.id = id;
+
+  // Row 1: Date + Location
+  const row1 = document.createElement('div');
+  row1.className = 'shift-card-grid';
+
+  const dateFg = document.createElement('div'); dateFg.className = 'field-group';
+  const dateLbl = document.createElement('label'); dateLbl.textContent = 'Date';
+  const dateInp = document.createElement('input'); dateInp.type = 'date'; dateInp.value = data.date || todayD;
+  dateInp.onchange = () => updateCard(id);
+  dateFg.appendChild(dateLbl); dateFg.appendChild(dateInp); row1.appendChild(dateFg);
+
+  const locFg = document.createElement('div'); locFg.className = 'field-group';
+  const locLbl = document.createElement('label'); locLbl.textContent = 'Location';
+  const locSel = document.createElement('select'); locSel.className = 's-loc';
+  locSel.innerHTML = '<option value="">-- Location --</option>' +
+    locationList.map(l => `<option value="${l.id}"${l.id==data.location_id?' selected':''}>${esc(l.name)}</option>`).join('');
+  locSel.onchange = () => updateCard(id);
+  locFg.appendChild(locLbl); locFg.appendChild(locSel); row1.appendChild(locFg);
+  card.appendChild(row1);
+
+  // Row 2: Start + End + Break
+  const row2 = document.createElement('div');
+  row2.className = 'shift-card-grid three';
+
+  const startFg = document.createElement('div'); startFg.className = 'field-group';
+  const startLbl = document.createElement('label'); startLbl.textContent = 'Start';
+  const startSel = mkSel('s-start', TIME_OPTS.map(t=>({v:t,l:t})), data.start||'09:00', ()=>updateCard(id));
+  startFg.appendChild(startLbl); startFg.appendChild(startSel); row2.appendChild(startFg);
+
+  const endFg = document.createElement('div'); endFg.className = 'field-group';
+  const endLbl = document.createElement('label'); endLbl.textContent = 'End';
+  const endSel = mkSel('s-end', TIME_OPTS.map(t=>({v:t,l:t})), data.end||'17:00', ()=>updateCard(id));
+  endFg.appendChild(endLbl); endFg.appendChild(endSel); row2.appendChild(endFg);
+
+  const brkFg = document.createElement('div'); brkFg.className = 'field-group';
+  const brkLbl = document.createElement('label'); brkLbl.textContent = 'Break';
+  const brkSel = mkSel('s-brk', BREAK_OPTS, data.break_mins || 0, ()=>updateCard(id));
+  brkFg.appendChild(brkLbl); brkFg.appendChild(brkSel); row2.appendChild(brkFg);
+  card.appendChild(row2);
+
+  // Footer: hours + status + delete
+  const footer = document.createElement('div'); footer.className = 'shift-card-footer';
+  const hoursEl = document.createElement('span'); hoursEl.className = 'shift-card-hours'; hoursEl.dataset.role = 'hrs'; footer.appendChild(hoursEl);
+  const statusEl = document.createElement('span'); statusEl.dataset.role = 'sts'; footer.appendChild(statusEl);
+  const delBtn = document.createElement('button'); delBtn.className = 'shift-card-del'; delBtn.textContent = '✕'; delBtn.title = 'Remove';
+  delBtn.onclick = () => card.remove();
+  footer.appendChild(delBtn);
+  card.appendChild(footer);
+
+  wrap.appendChild(card);
+  updateCard(id);
 }
 
 function updateRow(id) {
@@ -1205,20 +1349,41 @@ function updateRow(id) {
   const st = breakStatus(s, e, b);
   if (st) {
     const badge = document.createElement('span');
-    badge.className = `break-flag ${st.type}`;
-    badge.title = st.tip;
-    badge.textContent = st.label;
+    badge.className = `break-flag ${st.type}`; badge.title = st.tip; badge.textContent = st.label;
+    sc.appendChild(badge);
+  }
+}
+
+function updateCard(id) {
+  const card = document.querySelector(`.shift-card[data-id="${id}"]`); if (!card) return;
+  const s  = card.querySelector('.s-start').value;
+  const e  = card.querySelector('.s-end').value;
+  const b  = parseInt(card.querySelector('.s-brk').value) || 0;
+  const net = calcNetHours(s, e, b);
+  const hc  = card.querySelector('[data-role="hrs"]');
+  hc.textContent = (net !== null && net > 0) ? net.toFixed(2) + 'h' : '--';
+  hc.style.color = (net !== null && net > 0) ? 'var(--deep)' : 'var(--text-light)';
+  const sc = card.querySelector('[data-role="sts"]'); sc.innerHTML = '';
+  const st = breakStatus(s, e, b);
+  if (st) {
+    const badge = document.createElement('span');
+    badge.className = `break-flag ${st.type}`; badge.title = st.tip; badge.textContent = st.label;
     sc.appendChild(badge);
   }
 }
 
 function getRowData() {
-  return Array.from(document.querySelectorAll('.shift-row')).map(tr => {
-    const date      = tr.querySelector('input[type="date"]').value;
-    const start     = tr.querySelector('.s-start').value;
-    const end       = tr.querySelector('.s-end').value;
-    const loc_id    = tr.querySelector('.s-loc').value || null;
-    const breakMins = parseInt(tr.querySelector('.s-brk').value) || 0;
+  // Read from whichever shift entry mode is active (table rows or mobile cards)
+  const sources = [
+    ...Array.from(document.querySelectorAll('.shift-row')),
+    ...Array.from(document.querySelectorAll('.shift-card'))
+  ];
+  return sources.map(el => {
+    const date      = el.querySelector('input[type="date"]').value;
+    const start     = el.querySelector('.s-start').value;
+    const end       = el.querySelector('.s-end').value;
+    const loc_id    = el.querySelector('.s-loc').value || null;
+    const breakMins = parseInt(el.querySelector('.s-brk').value) || 0;
     const gross     = toMins(end) - toMins(start);
     const req       = gross > 0 ? requiredBreak(gross) : 0;
     const net       = calcNetHours(start, end, breakMins);
@@ -1269,6 +1434,7 @@ function resetForm() {
     document.getElementById('staffSelect').value = '';
   }
   document.getElementById('shiftRows').innerHTML = '';
+  document.getElementById('shiftCards').innerHTML = '';
   rowId = 0;
   addShiftRow();
 }
@@ -1332,16 +1498,16 @@ async function renderRecords() {
     const canDelete = isAdmin();
 
     rows += `<tr>
-      <td>${esc(r.staff?.name || 'Unknown')}</td>
-      <td>${r.location?.name ? esc(r.location.name) : '<span style="color:var(--text-light);font-style:italic">None</span>'}</td>
-      <td>${r.date}</td>
-      <td>${r.start_time?.slice(0,5)}</td>
-      <td>${r.end_time?.slice(0,5)}</td>
-      <td>${r.break_mins > 0 ? r.break_mins + 'm' : '—'}</td>
-      <td>${r.required_break_mins > 0 ? r.required_break_mins + 'm' : '—'}</td>
-      <td style="text-align:center;font-weight:600;color:var(--deep)">${h > 0 ? h.toFixed(2) + 'h' : '--'}</td>
-      <td>${stHtml} ${amendedHtml}</td>
-      <td style="display:flex;gap:5px;align-items:center;justify-content:center">
+      <td data-label="">${esc(r.staff?.name || 'Unknown')}</td>
+      <td data-label="Location">${r.location?.name ? esc(r.location.name) : '<span style="color:var(--text-light);font-style:italic">None</span>'}</td>
+      <td data-label="Date">${r.date}</td>
+      <td data-label="Start">${r.start_time?.slice(0,5)}</td>
+      <td data-label="End">${r.end_time?.slice(0,5)}</td>
+      <td data-label="Break">${r.break_mins > 0 ? r.break_mins + 'm' : '—'}</td>
+      <td data-label="Req.">${r.required_break_mins > 0 ? r.required_break_mins + 'm' : '—'}</td>
+      <td data-label="Net Hrs" style="text-align:center;font-weight:600;color:var(--deep)">${h > 0 ? h.toFixed(2) + 'h' : '--'}</td>
+      <td data-label="Status">${stHtml} ${amendedHtml}</td>
+      <td data-label="" style="display:flex;gap:5px;align-items:center;justify-content:center">
         ${canEdit   ? `<button class="btn btn-outline" style="padding:4px 9px;font-size:0.75rem" onclick="editShift('${r.id}')">Edit</button>` : ''}
         ${canDelete ? `<button class="btn btn-danger-outline" onclick="deleteRecord('${r.id}')">✕</button>` : ''}
       </td>
