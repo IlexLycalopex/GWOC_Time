@@ -1698,7 +1698,11 @@ async function inviteUser() {
         'apikey':        SUPABASE_SERVICE_ROLE_KEY,
         'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
       },
-      body: JSON.stringify({ email, data: { full_name: name, role } })
+      body: JSON.stringify({
+        email,
+        data: { full_name: name, role },
+        redirect_to: window.location.origin + window.location.pathname
+      })
     });
 
     let body = {};
