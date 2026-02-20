@@ -270,7 +270,6 @@ table.rec-table{width:100%;border-collapse:collapse}
   <nav>
     <div class="nav-tab" id="tab-dashboard" onclick="switchPage('dashboard')">📊 Dashboard</div>
     <div class="nav-tab active" id="tab-timesheets" onclick="switchPage('timesheets')">🗓 Timesheets</div>
-    <div class="nav-tab hidden" id="tab-staff" onclick="switchPage('staff')">👤 Staff <span class="nav-badge" id="staffBadge">0</span></div>
     <div class="nav-tab hidden" id="tab-locations" onclick="switchPage('locations')">📍 Locations</div>
     <div class="nav-tab hidden" id="tab-users" onclick="switchPage('users')">👥 Users</div>
     <div class="nav-tab hidden" id="tab-audit" onclick="switchPage('audit')">📜 Audit Log</div>
@@ -376,22 +375,6 @@ table.rec-table{width:100%;border-collapse:collapse}
   </div>
 </div>
 
-<!-- ==================== STAFF ==================== -->
-<div class="page" id="page-staff">
-  <div class="card">
-    <div class="card-header"><span>👤</span><h2>Staff Directory</h2></div>
-    <div class="card-body">
-      <div class="entity-add-form">
-        <div class="field-group" style="min-width:130px;flex:1"><label>First Name</label><input type="text" id="newFirst" placeholder="e.g. Sarah" autocomplete="off"></div>
-        <div class="field-group" style="min-width:130px;flex:1"><label>Last Name</label><input type="text" id="newLast" placeholder="e.g. Mitchell" autocomplete="off"></div>
-        <div class="field-group" style="min-width:120px;flex:1"><label>Role <span style="font-weight:400;font-size:0.68rem">(optional)</span></label><input type="text" id="newRole" placeholder="e.g. Barista" autocomplete="off"></div>
-        <button class="btn btn-primary" onclick="addStaff()" style="flex-shrink:0;white-space:nowrap">Add Staff Member</button>
-      </div>
-      <div id="staffGrid"></div>
-    </div>
-  </div>
-</div>
-
 <!-- ==================== LOCATIONS ==================== -->
 <div class="page" id="page-locations">
   <div class="card">
@@ -408,8 +391,25 @@ table.rec-table{width:100%;border-collapse:collapse}
 
 <!-- ==================== USERS ==================== -->
 <div class="page" id="page-users">
+
+  <!-- STAFF RECORDS CARD -->
   <div class="card">
-    <div class="card-header"><span>👥</span><h2>User Management</h2></div>
+    <div class="card-header"><span>👤</span><h2>Staff Records</h2></div>
+    <div class="card-body">
+      <div class="entity-add-form">
+        <div class="field-group" style="min-width:130px;flex:1"><label>First Name</label><input type="text" id="newFirst" placeholder="e.g. Sarah" autocomplete="off"></div>
+        <div class="field-group" style="min-width:130px;flex:1"><label>Last Name</label><input type="text" id="newLast" placeholder="e.g. Mitchell" autocomplete="off"></div>
+        <div class="field-group" style="min-width:120px;flex:1"><label>Job Title <span style="font-weight:400;font-size:0.68rem">(optional)</span></label><input type="text" id="newRole" placeholder="e.g. Barista" autocomplete="off"></div>
+        <button class="btn btn-primary" onclick="addStaff()" style="flex-shrink:0;white-space:nowrap">Add Staff Member</button>
+      </div>
+      <p style="font-size:0.75rem;color:var(--text-light);margin-bottom:16px;margin-top:-8px">Staff records represent physical employees. Link them to a login account below so they can log their own timesheets.</p>
+      <div id="staffGrid"></div>
+    </div>
+  </div>
+
+  <!-- USER ACCOUNTS CARD -->
+  <div class="card">
+    <div class="card-header"><span>👥</span><h2>User Accounts</h2></div>
     <div class="card-body">
       <div class="entity-add-form" style="background:var(--chalk);padding:18px;border-radius:10px;margin-bottom:22px;border:none">
         <div style="width:100%;margin-bottom:10px;font-size:0.78rem;color:var(--text-mid);font-weight:500">Invite a new user — they will receive an email to set their password.</div>
@@ -430,6 +430,7 @@ table.rec-table{width:100%;border-collapse:collapse}
       </div>
     </div>
   </div>
+
 </div>
 
 <!-- ==================== AUDIT LOG ==================== -->
@@ -687,7 +688,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Credentials are set — register the auth listener
+  // Guard flag — prevents concurrent or duplicate boot attempts
+  let _appBooted = false;
+  let _booting   = false;
+
   db.auth.onAuthStateChange(async (event, session) => {
     console.log('[Auth]', event, session?.user?.email || 'no user');
 
@@ -699,6 +703,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION')) {
+      _appBooted = false;
+      _booting   = false;
       currentUser = null;
       currentProfile = null;
       document.getElementById('appRoot').style.display = 'none';
@@ -707,13 +713,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // TOKEN_REFRESHED: silently update the user object but never re-boot or re-show login
+    if (event === 'TOKEN_REFRESHED') {
+      if (session?.user) currentUser = session.user;
+      return;
+    }
+
     if (session?.user && (
-      event === 'SIGNED_IN'      ||
-      event === 'USER_UPDATED'   ||
-      event === 'TOKEN_REFRESHED'||
+      event === 'SIGNED_IN'    ||
+      event === 'USER_UPDATED' ||
       event === 'INITIAL_SESSION'
     )) {
-      if (event === 'TOKEN_REFRESHED' && currentUser) return;
+      // If already booted (e.g. USER_UPDATED fires after password change), skip
+      if (_appBooted || _booting) return;
+      _booting = true;
+
       console.log('[Auth] loading profile for', session.user.email);
       currentUser = session.user;
       try {
@@ -721,20 +735,30 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch(e) {
         console.error('[Auth] loadProfile threw:', e);
       }
-      console.log('[Auth] profile loaded:', JSON.stringify(currentProfile));
+
       if (!currentProfile) {
-        console.error('[Auth] no profile — showing error');
+        _booting = false;
+        console.error('[Auth] no profile row found after retries');
         hideLoading();
+        // Clear the "connecting" info message first
+        const infoEl = document.getElementById('signInInfo');
+        if (infoEl) { infoEl.textContent = ''; infoEl.style.display = 'none'; }
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('appRoot').style.display = 'none';
-        showAuthErr('signInErr', 'Could not load your account profile. This may be a connection issue — please refresh and try again. If the problem persists, ask your administrator to check the SQL setup.');
+        showAuthErr('signInErr', 'Could not reach the server after 45 seconds. This usually means the database is still waking up — please wait a moment and try signing in again.');
         return;
       }
-      console.log('[Auth] calling bootApp...');
+      // Clear the "connecting" info message on success
+      const infoEl = document.getElementById('signInInfo');
+      if (infoEl) { infoEl.textContent = ''; infoEl.style.display = 'none'; }
+
       try {
         await bootApp();
+        _appBooted = true;
       } catch(e) {
         console.error('[Auth] bootApp threw:', e);
+      } finally {
+        _booting = false;
       }
     }
   });
@@ -743,28 +767,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadProfile() {
   console.log('[loadProfile] starting for uid:', currentUser.id);
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  // Supabase free-tier projects cold-start in 10–20s after inactivity.
+  // We keep retrying for up to 45s before giving up, showing a gentle
+  // status message rather than booting back to the login screen.
+  const startedAt = Date.now();
+  const MAX_WAIT  = 45000; // 45 seconds total
+  let   attempt   = 0;
+
+  while (Date.now() - startedAt < MAX_WAIT) {
+    attempt++;
     try {
       console.log('[loadProfile] attempt', attempt);
       const result = await Promise.race([
         db.from('profiles').select('*').eq('id', currentUser.id).single(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
       ]);
-      if (result.error) {
-        console.error('[loadProfile] DB error:', result.error.message, result.error.code);
-        if (result.error.code === 'PGRST116') { currentProfile = null; return; }
-        if (attempt < 3) { await new Promise(r => setTimeout(r, 1500 * attempt)); continue; }
-        currentProfile = null; return;
+
+      if (!result.error) {
+        currentProfile = result.data || null;
+        console.log('[loadProfile] success, role:', currentProfile?.role);
+        return;
       }
-      currentProfile = result.data || null;
-      console.log('[loadProfile] success, role:', currentProfile?.role);
-      return;
+
+      // PGRST116 = row genuinely doesn't exist — no point retrying
+      if (result.error.code === 'PGRST116') {
+        console.error('[loadProfile] no profile row exists for this user');
+        currentProfile = null;
+        return;
+      }
+
+      console.warn('[loadProfile] attempt', attempt, 'DB error:', result.error.message, '— retrying...');
+
     } catch(e) {
-      console.error('[loadProfile] attempt', attempt, 'caught:', e.message);
-      if (attempt < 3) { await new Promise(r => setTimeout(r, 1500 * attempt)); continue; }
-      currentProfile = null;
+      console.warn('[loadProfile] attempt', attempt, 'caught:', e.message, '— retrying...');
     }
+
+    // Show a soft status message after the first failure so the user
+    // knows the app is still working, not frozen
+    if (attempt === 1) {
+      showAuthInfo('signInInfo', 'Connecting to server — this can take a few seconds after a period of inactivity...');
+    }
+
+    const delay = Math.min(3000 * attempt, 10000);
+    await new Promise(r => setTimeout(r, delay));
   }
+
+  // Exhausted all retries
+  console.error('[loadProfile] all retries exhausted after', Math.round((Date.now() - startedAt) / 1000), 's');
+  currentProfile = null;
 }
 
 // ================================================================
@@ -785,7 +835,7 @@ async function bootApp() {
     const showTabs = ids => ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); });
 
     if (role === 'admin' || role === 'manager') {
-      showTabs(['tab-dashboard','tab-timesheets','tab-staff','tab-locations','tab-users','tab-audit']);
+      showTabs(['tab-dashboard','tab-timesheets','tab-locations','tab-users','tab-audit']);
     } else {
       showTabs(['tab-dashboard','tab-timesheets']);
     }
@@ -863,8 +913,6 @@ async function loadStaff() {
       return;
     }
     staffList = data || [];
-    const badge = document.getElementById('staffBadge');
-    if (badge) badge.textContent = staffList.length;
     rebuildStaffSelect();
   } catch(e) {
     console.error('loadStaff exception:', e);
@@ -880,7 +928,7 @@ function rebuildStaffSelect() {
 }
 
 async function addStaff() {
-  const btn   = document.querySelector('#page-staff .btn-primary');
+  const btn   = document.querySelector('#page-users .btn-primary[onclick="addStaff()"]');
   const first = document.getElementById('newFirst').value.trim();
   const last  = document.getElementById('newLast').value.trim();
   const role  = document.getElementById('newRole').value.trim();
@@ -1238,8 +1286,7 @@ async function renderRecords() {
       id, date, start_time, end_time, break_mins, required_break_mins,
       net_hours, break_warning, created_at, amended_at, amendment_reason,
       staff:staff_id ( id, name ),
-      location:location_id ( id, name ),
-      created_by_profile:created_by ( id, full_name )
+      location:location_id ( id, name )
     `, { count: 'exact' })
     .order('date', { ascending: false })
     .order('start_time', { ascending: false })
@@ -1587,20 +1634,30 @@ async function renderAuditLog() {
   const cont = document.getElementById('auditContainer');
   cont.innerHTML = '<div class="empty-state"><div class="icon" style="font-size:1.5rem">⏳</div><p>Loading...</p></div>';
 
+  // Fetch audit log without the profiles join (which breaks RLS on other users)
   const { data, error } = await db.from('amendment_log')
     .select(`
-      id, reason, changed_at,
-      timesheet:timesheet_id ( date, start_time, end_time, staff:staff_id(name) ),
-      amended_by_profile:amended_by ( full_name, email )
+      id, reason, changed_at, amended_by,
+      timesheet:timesheet_id ( date, start_time, end_time, staff:staff_id(name) )
     `)
     .order('changed_at', { ascending: false })
     .limit(100);
 
-  if (error) { cont.innerHTML = '<div class="empty-state"><p>Error loading audit log.</p></div>'; return; }
+  if (error) { cont.innerHTML = '<div class="empty-state"><p>Error loading audit log: ' + esc(error.message) + '</p></div>'; return; }
   if (!data?.length) { cont.innerHTML = '<div class="empty-state"><div class="icon">📜</div><p>No amendments recorded yet.</p></div>'; return; }
 
+  // Fetch names for all unique amended_by user IDs in one query
+  const uniqueIds = [...new Set(data.map(a => a.amended_by).filter(Boolean))];
+  let nameMap = {};
+  if (uniqueIds.length) {
+    const { data: profiles } = await db.from('profiles')
+      .select('id, full_name, email')
+      .in('id', uniqueIds);
+    (profiles || []).forEach(p => { nameMap[p.id] = p.full_name || p.email || p.id; });
+  }
+
   cont.innerHTML = data.map(a => {
-    const who   = a.amended_by_profile?.full_name || a.amended_by_profile?.email || 'Unknown';
+    const who   = nameMap[a.amended_by] || 'Unknown user';
     const when  = a.changed_at ? new Date(a.changed_at).toLocaleString('en-GB') : '';
     const ts    = a.timesheet;
     const tsStr = ts ? `${ts.staff?.name || '?'} — ${ts.date} ${ts.start_time?.slice(0,5)} to ${ts.end_time?.slice(0,5)}` : 'Unknown entry';
