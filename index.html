@@ -492,45 +492,26 @@ table.rec-table{width:100%;border-collapse:collapse}
 
 <script>
 // ================================================================
-// CONFIGURATION — replace these two values with your project details
+// CONFIGURATION
+// Replace the two placeholder values below with your Supabase details.
 // Found at: Supabase Dashboard > Project Settings > API
+// Use the URL and the anon/public key.
 // ================================================================
-const SUPABASE_URL      = https://mafbfgvotsjscczjmjmx.supabase.co;       // e.g. https://abcdef.supabase.co
-const SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NDE4MTIsImV4cCI6MjA4NzExNzgxMn0.6oLTvdh4Pf7YJ-BDfhV3gOe6HphJJwYs-am96kcnK8Q;  // the anon/public key
+const SUPABASE_URL      = "https://mafbfgvotsjscczjmjmx.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NDE4MTIsImV4cCI6MjA4NzExNzgxMn0.6oLTvdh4Pf7YJ-BDfhV3gOe6HphJJwYs-am96kcnK8Q";
 
 // ================================================================
 // INIT SUPABASE
-// flowType: 'pkce' is required for GitHub Pages so that magic link,
-// invite, and password reset redirects work correctly.
 // ================================================================
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    flowType: 'pkce',
+    flowType: "pkce",
     detectSessionInUrl: true,
     persistSession: true,
     autoRefreshToken: true
   }
 });
-
-// Show a clear error if credentials are still placeholder values
-if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('authScreen').style.display = 'flex';
-    const box = document.querySelector('.auth-box');
-    box.innerHTML = \`
-      <div style="text-align:center;padding:10px 0">
-        <div style="font-size:2.5rem;margin-bottom:14px">⚙️</div>
-        <h2 style="font-family:'Playfair Display',serif;color:#c0392b;margin-bottom:10px">Configuration Required</h2>
-        <p style="font-size:0.85rem;color:#3a5068;line-height:1.6;margin-bottom:16px">
-          Open <strong>index.html</strong> and replace<br>
-          <code style="background:#eaf0f6;padding:2px 6px;border-radius:4px">YOUR_SUPABASE_URL</code> and<br>
-          <code style="background:#eaf0f6;padding:2px 6px;border-radius:4px">YOUR_SUPABASE_ANON_KEY</code><br>
-          with your values from Supabase &rarr; Project Settings &rarr; API
-        </p>
-      </div>\`;
-  });
-}
 
 // ================================================================
 // APP STATE
@@ -733,88 +714,136 @@ document.addEventListener('DOMContentLoaded', () => {
       event === 'INITIAL_SESSION'
     )) {
       if (event === 'TOKEN_REFRESHED' && currentUser) return;
+      console.log('[Auth] loading profile for', session.user.email);
       currentUser = session.user;
-      await loadProfile();
+      try {
+        await loadProfile();
+      } catch(e) {
+        console.error('[Auth] loadProfile threw:', e);
+      }
+      console.log('[Auth] profile loaded:', JSON.stringify(currentProfile));
       if (!currentProfile) {
+        console.error('[Auth] no profile — showing error');
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('appRoot').style.display = 'none';
         showAuthErr('signInErr', 'Account found but no profile record exists. Ask your administrator to run the SQL setup script.');
         return;
       }
-      bootApp();
+      console.log('[Auth] calling bootApp...');
+      try {
+        await bootApp();
+      } catch(e) {
+        console.error('[Auth] bootApp threw:', e);
+      }
     }
   });
 
 }); // end DOMContentLoaded
 
 async function loadProfile() {
-  const { data, error } = await db
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
+  console.log('[loadProfile] starting for uid:', currentUser.id);
+  
+  // Race the DB query against a 5-second timeout so we never hang forever
+  const fallback = {
+    id: currentUser.id,
+    email: currentUser.email,
+    full_name: currentUser.email,
+    role: 'staff',
+    is_active: true
+  };
 
-  if (error || !data) {
-    console.error('Profile load error:', error);
-    return;
+  try {
+    const result = await Promise.race([
+      db.from('profiles').select('*').eq('id', currentUser.id).single(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+    ]);
+
+    console.log('[loadProfile] query returned:', JSON.stringify(result));
+
+    if (result.error) {
+      console.error('[loadProfile] error:', result.error.message, result.error.code);
+      currentProfile = fallback;
+      return;
+    }
+    if (!result.data) {
+      console.warn('[loadProfile] no data row found');
+      currentProfile = fallback;
+      return;
+    }
+    currentProfile = result.data;
+    console.log('[loadProfile] success, role:', currentProfile.role);
+
+  } catch(e) {
+    console.error('[loadProfile] caught:', e.message);
+    currentProfile = fallback;
   }
-  currentProfile = data;
 }
 
 // ================================================================
 // BOOT APP — called after successful auth
 // ================================================================
 async function bootApp() {
-  document.getElementById('authScreen').style.display = 'none';
-  document.getElementById('appRoot').style.display = 'block';
+  try {
+    console.log('[Boot] 1 - start, role:', currentProfile?.role);
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    console.log('[Boot] 2 - app visible');
 
-  // Header user info
-  document.getElementById('headerUserName').textContent = currentProfile?.full_name || currentProfile?.email || '';
-  const rb = document.getElementById('headerRoleBadge');
-  rb.textContent = (currentProfile?.role || 'staff').charAt(0).toUpperCase() + (currentProfile?.role || 'staff').slice(1);
-  rb.className = `user-role-badge role-${currentProfile?.role || 'staff'}`;
+    document.getElementById('headerUserName').textContent = currentProfile?.full_name || currentProfile?.email || '';
+    const rb = document.getElementById('headerRoleBadge');
+    rb.textContent = (currentProfile?.role || 'staff').charAt(0).toUpperCase() + (currentProfile?.role || 'staff').slice(1);
+    rb.className = 'user-role-badge role-' + (currentProfile?.role || 'staff');
+    console.log('[Boot] 3 - header set');
 
-  // Show/hide nav tabs based on role
-  const role = currentProfile?.role;
-  const showTabs = (ids) => ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove('hidden');
-  });
+    const role = currentProfile?.role;
+    const showTabs = (ids) => ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
 
-  if (role === 'admin') {
-    showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
-  } else if (role === 'manager') {
-    showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
+    if (role === 'admin' || role === 'manager') {
+      showTabs(['tab-dashboard','tab-staff','tab-locations','tab-users','tab-audit']);
+    } else {
+      showTabs(['tab-dashboard']);
+    }
+    console.log('[Boot] 4 - tabs set for role:', role);
+
+    if (!isAdminOrManager()) {
+      const sw = document.getElementById('staffSelectWrap');
+      const sr = document.getElementById('staffNameReadonly');
+      const sd = document.getElementById('staffNameDisplay');
+      const fw = document.getElementById('filterNameWrap');
+      if (sw) sw.style.display = 'none';
+      if (sr) sr.style.display = 'block';
+      if (sd) sd.textContent = currentProfile?.full_name || currentProfile?.email;
+      if (fw) fw.style.display = 'none';
+    }
+    console.log('[Boot] 5 - staff form configured');
+
+    const adminOpt = document.getElementById('inviteAdminOpt');
+    if (adminOpt && !isAdmin()) adminOpt.style.display = 'none';
+
+    showLoading();
+    console.log('[Boot] 6 - loading staff and locations...');
+    await Promise.all([loadStaff(), loadLocations()]);
+    console.log('[Boot] 7 - staff:', staffList.length, 'locations:', locationList.length);
+    hideLoading();
+
+    console.log('[Boot] 8 - adding shift row...');
+    addShiftRow();
+    console.log('[Boot] 9 - switching page...');
+    switchPage('timesheets');
+    console.log('[Boot] 10 - COMPLETE');
+
+    const now = new Date();
+    document.getElementById('dashFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    document.getElementById('dashTo').value = now.toISOString().split('T')[0];
+
+  } catch(e) {
+    hideLoading();
+    console.error('[Boot] CRASHED at:', e.message, e.stack);
+    showToast('App failed to load: ' + e.message);
   }
-  // staff only sees timesheets tab (already visible) and dashboard
-  if (role === 'staff') {
-    showTabs(['tab-dashboard']);
-  }
-
-  // Timesheet form: staff see their own name only
-  if (!isAdminOrManager()) {
-    document.getElementById('staffSelectWrap').style.display = 'none';
-    document.getElementById('staffNameReadonly').style.display = 'block';
-    document.getElementById('staffNameDisplay').textContent = currentProfile?.full_name || currentProfile?.email;
-    document.getElementById('filterNameWrap').style.display = 'none';
-  }
-
-  // Admins can assign admin role; managers cannot
-  const adminOpt = document.getElementById('inviteAdminOpt');
-  if (adminOpt && !isAdmin()) adminOpt.style.display = 'none';
-
-  showLoading();
-  await Promise.all([loadStaff(), loadLocations()]);
-  hideLoading();
-
-  // Init page
-  addShiftRow();
-  switchPage('timesheets');
-
-  // Dashboard defaults
-  const now = new Date();
-  document.getElementById('dashFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  document.getElementById('dashTo').value = now.toISOString().split('T')[0];
 }
 
 // ================================================================
@@ -840,11 +869,22 @@ function switchPage(p) {
 // STAFF DATA (from DB)
 // ================================================================
 async function loadStaff() {
-  const { data, error } = await db.from('staff').select('*').order('name');
-  if (error) { console.error(error); return; }
-  staffList = data || [];
-  document.getElementById('staffBadge').textContent = staffList.length;
-  rebuildStaffSelect();
+  try {
+    const { data, error } = await db.from('staff').select('*').order('name');
+    if (error) {
+      console.error('loadStaff error:', error.message);
+      // Table may not exist yet — fail gracefully
+      staffList = [];
+      return;
+    }
+    staffList = data || [];
+    const badge = document.getElementById('staffBadge');
+    if (badge) badge.textContent = staffList.length;
+    rebuildStaffSelect();
+  } catch(e) {
+    console.error('loadStaff exception:', e);
+    staffList = [];
+  }
 }
 
 function rebuildStaffSelect() {
@@ -902,10 +942,19 @@ function renderStaffGrid() {
 // LOCATION DATA (from DB)
 // ================================================================
 async function loadLocations() {
-  const { data, error } = await db.from('locations').select('*').order('name');
-  if (error) { console.error(error); return; }
-  locationList = data || [];
-  rebuildLocSelects();
+  try {
+    const { data, error } = await db.from('locations').select('*').order('name');
+    if (error) {
+      console.error('loadLocations error:', error.message);
+      locationList = [];
+      return;
+    }
+    locationList = data || [];
+    rebuildLocSelects();
+  } catch(e) {
+    console.error('loadLocations exception:', e);
+    locationList = [];
+  }
 }
 
 function rebuildLocSelects() {
