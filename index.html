@@ -230,7 +230,7 @@ table.rec-table{width:100%;border-collapse:collapse}
       <div class="auth-field"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email"></div>
       <div class="auth-field"><label>Password</label><input type="password" id="loginPw" placeholder="Your password" autocomplete="current-password"></div>
       <button class="btn btn-primary" style="width:100%;margin-top:6px;padding:11px" onclick="signIn()">Sign In</button>
-      <p style="text-align:center;margin-top:14px;font-size:0.8rem;color:var(--text-light)">Forgotten your password? <a href="#" onclick="showReset();return false;" style="color:var(--accent);text-decoration:none">Reset it</a></p>
+      <p style="text-align:center;margin-top:14px;font-size:0.8rem;color:var(--text-light)">Forgotten your password? <a href="javascript:void(0)" onclick="showReset()" style="color:var(--accent);text-decoration:none">Reset it</a></p>
     </div>
 
     <!-- Password Reset -->
@@ -241,7 +241,7 @@ table.rec-table{width:100%;border-collapse:collapse}
       <div class="auth-info" id="resetInfo"></div>
       <div class="auth-field"><label>Email</label><input type="email" id="resetEmail" placeholder="you@example.com"></div>
       <button class="btn btn-primary" style="width:100%;margin-top:6px;padding:11px" onclick="sendReset()">Send Reset Link</button>
-      <p style="text-align:center;margin-top:14px;font-size:0.8rem;color:var(--text-light)"><a href="#" onclick="showSignIn();return false;" style="color:var(--accent);text-decoration:none">Back to sign in</a></p>
+      <p style="text-align:center;margin-top:14px;font-size:0.8rem;color:var(--text-light)"><a href="javascript:void(0)" onclick="showSignIn()" style="color:var(--accent);text-decoration:none">Back to sign in</a></p>
     </div>
 
     <!-- Set New Password (after reset link) -->
@@ -682,49 +682,70 @@ async function signOut() {
 
 // ================================================================
 // AUTH STATE LISTENER — drives the whole app
-// Supabase fires this on: SIGNED_IN, SIGNED_OUT, PASSWORD_RECOVERY,
-// USER_UPDATED, TOKEN_REFRESHED, INITIAL_SESSION
+// Registered inside DOMContentLoaded so the DOM is always ready.
+// Only registered when credentials are actually configured.
 // ================================================================
-db.auth.onAuthStateChange(async (event, session) => {
-  console.log('[Auth]', event, session?.user?.email || 'no user');
+document.addEventListener('DOMContentLoaded', () => {
 
-  if (event === 'PASSWORD_RECOVERY') {
-    // User clicked a password reset link — show the set-password screen
+  // If credentials not set, show config error and stop here
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
     document.getElementById('authScreen').style.display = 'flex';
-    document.getElementById('appRoot').style.display = 'none';
-    showNewPw();
+    const box = document.querySelector('.auth-box');
+    if (box) box.innerHTML = `
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-size:2.5rem;margin-bottom:14px">⚙️</div>
+        <h2 style="font-family:'Playfair Display',serif;color:#c0392b;margin-bottom:10px">Configuration Required</h2>
+        <p style="font-size:0.85rem;color:#3a5068;line-height:1.6;margin-bottom:16px">
+          Open <strong>index.html</strong> and replace<br>
+          <code style="background:#eaf0f6;padding:2px 6px;border-radius:4px;font-size:0.8rem">YOUR_SUPABASE_URL</code> and<br>
+          <code style="background:#eaf0f6;padding:2px 6px;border-radius:4px;font-size:0.8rem">YOUR_SUPABASE_ANON_KEY</code><br>
+          with your values from<br>
+          <strong>Supabase &rarr; Project Settings &rarr; API</strong>
+        </p>
+      </div>`;
     return;
   }
 
-  if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION')) {
-    currentUser = null;
-    currentProfile = null;
-    document.getElementById('appRoot').style.display = 'none';
-    document.getElementById('authScreen').style.display = 'flex';
-    showSignIn();
-    return;
-  }
+  // Credentials are set — register the auth listener
+  db.auth.onAuthStateChange(async (event, session) => {
+    console.log('[Auth]', event, session?.user?.email || 'no user');
 
-  if (session?.user && (
-    event === 'SIGNED_IN' ||
-    event === 'USER_UPDATED' ||
-    event === 'TOKEN_REFRESHED' ||
-    event === 'INITIAL_SESSION'
-  )) {
-    // Avoid re-booting if already loaded (e.g. on token refresh)
-    if (event === 'TOKEN_REFRESHED' && currentUser) return;
-    currentUser = session.user;
-    await loadProfile();
-    if (!currentProfile) {
-      // Profile row missing — show a helpful error rather than blank screen
+    if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appRoot').style.display = 'none';
-      showAuthErr('signInErr', 'Account found but profile is missing. Please contact your administrator.');
+      showNewPw();
       return;
     }
-    bootApp();
-  }
-});
+
+    if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION')) {
+      currentUser = null;
+      currentProfile = null;
+      document.getElementById('appRoot').style.display = 'none';
+      document.getElementById('authScreen').style.display = 'flex';
+      showSignIn();
+      return;
+    }
+
+    if (session?.user && (
+      event === 'SIGNED_IN'      ||
+      event === 'USER_UPDATED'   ||
+      event === 'TOKEN_REFRESHED'||
+      event === 'INITIAL_SESSION'
+    )) {
+      if (event === 'TOKEN_REFRESHED' && currentUser) return;
+      currentUser = session.user;
+      await loadProfile();
+      if (!currentProfile) {
+        document.getElementById('authScreen').style.display = 'flex';
+        document.getElementById('appRoot').style.display = 'none';
+        showAuthErr('signInErr', 'Account found but no profile record exists. Ask your administrator to run the SQL setup script.');
+        return;
+      }
+      bootApp();
+    }
+  });
+
+}); // end DOMContentLoaded
 
 async function loadProfile() {
   const { data, error } = await db
