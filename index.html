@@ -578,6 +578,13 @@ const SUPABASE_URL      = "https://mafbfgvotsjscczjmjmx.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NDE4MTIsImV4cCI6MjA4NzExNzgxMn0.6oLTvdh4Pf7YJ-BDfhV3gOe6HphJJwYs-am96kcnK8Q";
 
 // ================================================================
+// SERVICE ROLE KEY — required for inviting new users.
+// This is safe for an internal tool hosted privately.
+// Find it at: Supabase Dashboard > Project Settings > API > service_role key
+// ================================================================
+const SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTU0MTgxMiwiZXhwIjoyMDg3MTE3ODEyfQ.0CHHId8B7uknCs5Loa8p56vG_Q6udo6vGEfps0ipafI";
+
+// ================================================================
 // INIT SUPABASE
 // ================================================================
 const { createClient } = supabase;
@@ -1674,18 +1681,54 @@ async function inviteUser() {
   if (!name)  { showToast('Please enter a full name'); return; }
   if (role === 'admin' && !isAdmin()) { showToast('Only admins can create admin accounts'); return; }
 
+  if (SUPABASE_SERVICE_ROLE_KEY === 'YOUR_SERVICE_ROLE_KEY') {
+    showToast('Service role key not configured — see comments in index.html');
+    return;
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   showLoading();
   try {
-    const { data, error } = await db.functions.invoke('invite-user', {
-      body: { email, full_name: name, role }
+    // Call the Supabase Auth Admin API directly — no Edge Function needed.
+    // inviteUserByEmail sends the user a "set your password" email.
+    const resp = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':        SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
+      },
+      body: JSON.stringify({ email, data: { full_name: name, role } })
     });
-    if (error) { showToast('Error: ' + error.message); return; }
-    if (data?.error) { showToast('Error: ' + data.error); return; }
+
+    let body = {};
+    try { body = await resp.json(); } catch(_) {}
+
+    if (!resp.ok) {
+      const msg = body?.msg || body?.message || body?.error_description || body?.error || `Server error ${resp.status}`;
+      showToast('Invite failed: ' + msg);
+      console.error('invite response:', resp.status, body);
+      return;
+    }
+
+    const newUserId = body?.id;
+
+    // Ensure a profiles row exists for the new user.
+    // The handle_new_user trigger should do this automatically,
+    // but we upsert here as a belt-and-braces fallback.
+    if (newUserId) {
+      await db.from('profiles').upsert({
+        id: newUserId, email, full_name: name, role, is_active: true
+      }, { onConflict: 'id', ignoreDuplicates: true });
+    }
+
     document.getElementById('inviteEmail').value = '';
     document.getElementById('inviteName').value  = '';
     showToast(`Invite sent to ${email}`);
     renderUsers().catch(e => console.error('renderUsers after invite:', e));
+  } catch(e) {
+    showToast('Network error — check your connection and try again');
+    console.error('inviteUser error:', e);
   } finally {
     hideLoading();
     if (btn) { btn.disabled = false; btn.textContent = 'Send Invite'; }
