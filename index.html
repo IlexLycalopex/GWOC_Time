@@ -690,7 +690,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Credentials are set — register the auth listener
   db.auth.onAuthStateChange(async (event, session) => {
     console.log('[Auth]', event, session?.user?.email || 'no user');
-    console.log('[Auth] handler running, event=', event, 'has session=', !!session);
 
     if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('authScreen').style.display = 'flex';
@@ -742,36 +741,41 @@ document.addEventListener('DOMContentLoaded', () => {
 }); // end DOMContentLoaded
 
 async function loadProfile() {
-  try {
-    const { data, error } = await db
-      .from('profiles')
-      .select('*')
-      .eq('id', currentUser.id)
-      .single();
+  console.log('[loadProfile] starting for uid:', currentUser.id);
+  
+  // Race the DB query against a 5-second timeout so we never hang forever
+  const fallback = {
+    id: currentUser.id,
+    email: currentUser.email,
+    full_name: currentUser.email,
+    role: 'staff',
+    is_active: true
+  };
 
-    if (error) {
-      console.error('Profile load error:', error.message);
-      // If profiles table missing, create a minimal fallback so app doesn't hang
-      currentProfile = {
-        id: currentUser.id,
-        email: currentUser.email,
-        full_name: currentUser.email,
-        role: 'staff',
-        is_active: true
-      };
-      showToast('Warning: profiles table not found. Run the SQL setup script in Supabase.');
+  try {
+    const result = await Promise.race([
+      db.from('profiles').select('*').eq('id', currentUser.id).single(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+    ]);
+
+    console.log('[loadProfile] query returned:', JSON.stringify(result));
+
+    if (result.error) {
+      console.error('[loadProfile] error:', result.error.message, result.error.code);
+      currentProfile = fallback;
       return;
     }
-    currentProfile = data;
+    if (!result.data) {
+      console.warn('[loadProfile] no data row found');
+      currentProfile = fallback;
+      return;
+    }
+    currentProfile = result.data;
+    console.log('[loadProfile] success, role:', currentProfile.role);
+
   } catch(e) {
-    console.error('loadProfile exception:', e);
-    currentProfile = {
-      id: currentUser.id,
-      email: currentUser.email,
-      full_name: currentUser.email,
-      role: 'staff',
-      is_active: true
-    };
+    console.error('[loadProfile] caught:', e.message);
+    currentProfile = fallback;
   }
 }
 
