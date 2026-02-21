@@ -1893,6 +1893,8 @@ async function callUserAdmin(payload) {
   const token   = session.data?.session?.access_token;
   if (!token) throw new Error('Session expired — please sign in again');
 
+  console.log('[callUserAdmin] token length:', token.length, 'payload action:', payload.action);
+
   const resp = await fetch(`${SUPABASE_URL}/functions/v1/gwoc-user-admin`, {
     method:  'POST',
     headers: {
@@ -1905,6 +1907,8 @@ async function callUserAdmin(payload) {
 
   let body = {};
   try { body = await resp.json(); } catch(_) {}
+
+  console.log('[callUserAdmin] response status:', resp.status, 'body:', JSON.stringify(body));
 
   if (!resp.ok) {
     const msg = body?.error || body?.message || `Server error ${resp.status}`;
