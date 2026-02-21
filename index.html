@@ -674,13 +674,6 @@ const SUPABASE_URL      = "https://mafbfgvotsjscczjmjmx.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NDE4MTIsImV4cCI6MjA4NzExNzgxMn0.6oLTvdh4Pf7YJ-BDfhV3gOe6HphJJwYs-am96kcnK8Q";
 
 // ================================================================
-// SERVICE ROLE KEY — required for inviting new users.
-// This is safe for an internal tool hosted privately.
-// Find it at: Supabase Dashboard > Project Settings > API > service_role key
-// ================================================================
-const SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hZmJmZ3ZvdHNqc2Njemptam14Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTU0MTgxMiwiZXhwIjoyMDg3MTE3ODEyfQ.0CHHId8B7uknCs5Loa8p56vG_Q6udo6vGEfps0ipafI";
-
-// ================================================================
 // INIT SUPABASE
 // ================================================================
 const { createClient } = supabase;
@@ -1891,6 +1884,35 @@ function closeAmendModal() {
 // ================================================================
 // USER MANAGEMENT (admin + manager)
 // ================================================================
+// ================================================================
+// USER ADMIN — calls the gwoc-user-admin Edge Function
+// The service role key lives in Supabase's secure environment only.
+// ================================================================
+async function callUserAdmin(payload) {
+  const session = await db.auth.getSession();
+  const token   = session.data?.session?.access_token;
+  if (!token) throw new Error('Session expired — please sign in again');
+
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/gwoc-user-admin`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer ' + token,
+      'apikey':        SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let body = {};
+  try { body = await resp.json(); } catch(_) {}
+
+  if (!resp.ok) {
+    const msg = body?.error || body?.message || `Server error ${resp.status}`;
+    throw new Error(msg);
+  }
+  return body;
+}
+
 async function inviteUser() {
   const btn   = document.querySelector('#page-users .btn-primary[onclick="inviteUser()"]');
   const email = document.getElementById('inviteEmail').value.trim().toLowerCase();
@@ -1901,62 +1923,55 @@ async function inviteUser() {
   if (!name)  { showToast('Please enter a full name'); return; }
   if (role === 'admin' && !isAdmin()) { showToast('Only admins can create admin accounts'); return; }
 
-  if (SUPABASE_SERVICE_ROLE_KEY === 'YOUR_SERVICE_ROLE_KEY') {
-    showToast('Service role key not configured — see comments in index.html');
-    return;
-  }
-
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   showLoading();
   try {
-    // Call the Supabase Auth Admin API directly — no Edge Function needed.
-    // inviteUserByEmail sends the user a "set your password" email.
-    const resp = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'apikey':        SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
-      },
-      body: JSON.stringify({
-        email,
-        data: { full_name: name, role },
-        redirect_to: window.location.origin + window.location.pathname
-      })
-    });
-
-    let body = {};
-    try { body = await resp.json(); } catch(_) {}
-
-    if (!resp.ok) {
-      const msg = body?.msg || body?.message || body?.error_description || body?.error || `Server error ${resp.status}`;
-      showToast('Invite failed: ' + msg);
-      console.error('invite response:', resp.status, body);
-      return;
-    }
-
-    const newUserId = body?.id;
-
-    // Ensure a profiles row exists for the new user.
-    // The handle_new_user trigger should do this automatically,
-    // but we upsert here as a belt-and-braces fallback.
-    if (newUserId) {
-      await db.from('profiles').upsert({
-        id: newUserId, email, full_name: name, role, is_active: true
-      }, { onConflict: 'id', ignoreDuplicates: true });
-    }
-
+    const result = await callUserAdmin({ action: 'invite', email, full_name: name, role });
     document.getElementById('inviteEmail').value = '';
     document.getElementById('inviteName').value  = '';
     showToast(`Invite sent to ${email}`);
     renderUsers().catch(e => console.error('renderUsers after invite:', e));
   } catch(e) {
-    showToast('Network error — check your connection and try again');
+    showToast('Invite failed: ' + e.message);
     console.error('inviteUser error:', e);
   } finally {
     hideLoading();
     if (btn) { btn.disabled = false; btn.textContent = 'Send Invite'; }
   }
+}
+
+async function resendInvite(email, full_name, role) {
+  if (!email) { showToast('No email address for this user'); return; }
+  showConfirm('Resend Invite', `Send a new invite email to ${email}?`, async () => {
+    showLoading();
+    try {
+      await callUserAdmin({ action: 'resend', email, full_name, role });
+      showToast(`Invite resent to ${email}`);
+    } catch(e) {
+      showToast('Failed: ' + e.message);
+    } finally {
+      hideLoading();
+    }
+  });
+}
+
+async function deleteUser(userId, displayName) {
+  showConfirm(
+    'Remove User',
+    `Permanently remove ${displayName}? Their timesheet records will be kept but they will no longer be able to sign in. This cannot be undone.`,
+    async () => {
+      showLoading();
+      try {
+        await callUserAdmin({ action: 'delete_user', user_id: userId });
+        showToast(`${displayName} removed`);
+        renderUsers().catch(e => console.error('renderUsers after delete:', e));
+      } catch(e) {
+        showToast('Failed: ' + e.message);
+      } finally {
+        hideLoading();
+      }
+    }
+  );
 }
 
 async function renderUsers() {
@@ -2066,70 +2081,6 @@ async function toggleUserActive(userId, currentlyActive) {
   } finally {
     hideLoading();
   }
-}
-
-async function resendInvite(email, full_name, role) {
-  if (!email) { showToast('No email address for this user'); return; }
-  showConfirm('Resend Invite', `Send a new invite email to ${email}?`, async () => {
-    showLoading();
-    try {
-      const resp = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'apikey':        SUPABASE_SERVICE_ROLE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
-        },
-        body: JSON.stringify({
-          email,
-          data: { full_name, role },
-          redirect_to: window.location.origin + window.location.pathname
-        })
-      });
-      let body = {};
-      try { body = await resp.json(); } catch(_) {}
-      if (!resp.ok) {
-        showToast('Failed: ' + (body?.msg || body?.error || `Error ${resp.status}`));
-        return;
-      }
-      showToast(`Invite resent to ${email}`);
-    } finally {
-      hideLoading();
-    }
-  });
-}
-
-async function deleteUser(userId, displayName) {
-  showConfirm(
-    'Remove User',
-    `Permanently remove ${displayName}? Their timesheet records will be kept but they will no longer be able to sign in. This cannot be undone.`,
-    async () => {
-      showLoading();
-      try {
-        // Delete from Auth via Admin API
-        const resp = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
-          method:  'DELETE',
-          headers: {
-            'apikey':        SUPABASE_SERVICE_ROLE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY
-          }
-        });
-        if (!resp.ok) {
-          let body = {};
-          try { body = await resp.json(); } catch(_) {}
-          showToast('Failed: ' + (body?.msg || body?.error || `Error ${resp.status}`));
-          return;
-        }
-        // Profile row will be cascade-deleted by Supabase auth trigger,
-        // but delete explicitly as a fallback
-        await db.from('profiles').delete().eq('id', userId);
-        showToast(`${displayName} removed`);
-        renderUsers().catch(e => console.error('renderUsers after delete:', e));
-      } finally {
-        hideLoading();
-      }
-    }
-  );
 }
 
 // ================================================================
