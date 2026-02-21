@@ -379,14 +379,14 @@ table.rec-table{width:100%;border-collapse:collapse}
       <p style="text-align:center;margin-top:14px;font-size:0.8rem;color:var(--text-light)"><a href="javascript:void(0)" onclick="showSignIn()" style="color:var(--accent);text-decoration:none">Back to sign in</a></p>
     </div>
 
-    <!-- Set New Password (after reset link) -->
+    <!-- Set New Password (after reset link or invite) -->
     <div id="newPwPanel" style="display:none">
-      <h2>Set New Password</h2>
-      <p>Choose a strong password for your account.</p>
+      <h2 id="newPwTitle">Set New Password</h2>
+      <p id="newPwSubtitle">Choose a strong password for your account.</p>
       <div class="auth-err" id="newPwErr"></div>
       <div class="auth-field"><label>New Password</label><input type="password" id="newPw1" placeholder="At least 8 characters"></div>
       <div class="auth-field"><label>Confirm Password</label><input type="password" id="newPw2" placeholder="Repeat password"></div>
-      <button class="btn btn-primary" style="width:100%;margin-top:6px;padding:11px" onclick="setNewPassword()">Update Password</button>
+      <button class="btn btn-primary" style="width:100%;margin-top:6px;padding:11px" onclick="setNewPassword()">Set Password</button>
     </div>
   </div>
 </div>
@@ -730,10 +730,19 @@ function showReset() {
   document.getElementById('signInPanel').style.display = 'none';
   document.getElementById('resetPanel').style.display = 'block';
 }
-function showNewPw() {
+function showNewPw(context) {
   document.getElementById('signInPanel').style.display = 'none';
-  document.getElementById('resetPanel').style.display = 'none';
-  document.getElementById('newPwPanel').style.display = 'block';
+  document.getElementById('resetPanel').style.display  = 'none';
+  document.getElementById('newPwPanel').style.display  = 'block';
+  const title    = document.getElementById('newPwTitle');
+  const subtitle = document.getElementById('newPwSubtitle');
+  if (context === 'invite') {
+    if (title)    title.textContent    = 'Welcome — set your password';
+    if (subtitle) subtitle.textContent = 'Your account is ready. Choose a password to complete setup.';
+  } else {
+    if (title)    title.textContent    = 'Set New Password';
+    if (subtitle) subtitle.textContent = 'Choose a strong password for your account.';
+  }
 }
 function showAuthErr(panelId, msg) {
   const el = document.getElementById(panelId);
@@ -809,17 +818,17 @@ async function setNewPassword() {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
   showLoading();
   try {
-    const { data, error } = await db.auth.updateUser({ password: p1 });
+    const { error } = await db.auth.updateUser({ password: p1 });
     hideLoading();
-    if (btn) { btn.disabled = false; btn.textContent = 'Update Password'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
     if (error) { showAuthErr('newPwErr', error.message); return; }
-    // Clear the hash from the URL so the recovery token isn't reused
+    // Clear the URL hash so the invite/recovery token is not reused on refresh
     history.replaceState(null, '', window.location.pathname);
     showToast('Password set — signing you in...');
-    // onAuthStateChange USER_UPDATED will fire and boot the app
+    // USER_UPDATED fires next — onAuthStateChange will boot the app
   } catch (e) {
     hideLoading();
-    if (btn) { btn.disabled = false; btn.textContent = 'Update Password'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
     showAuthErr('newPwErr', 'Error saving password — please try again.');
   }
 }
@@ -875,8 +884,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appRoot').style.display = 'none';
-      showNewPw();
+      showNewPw('reset');
       return;
+    }
+
+    // Detect invite link — Supabase fires SIGNED_IN with type=invite in the URL hash
+    if (event === 'SIGNED_IN' && session?.user) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      if (hashParams.get('type') === 'invite') {
+        console.log('[Auth] invite link detected — showing set password screen');
+        currentUser = session.user;
+        document.getElementById('authScreen').style.display = 'flex';
+        document.getElementById('appRoot').style.display = 'none';
+        showNewPw('invite');
+        return;
+      }
     }
 
     if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION')) {
