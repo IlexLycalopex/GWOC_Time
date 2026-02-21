@@ -118,6 +118,7 @@ table.rec-table{width:100%;border-collapse:collapse}
 .empty-state .icon{font-size:2.2rem;margin-bottom:9px}
 .empty-state p{font-size:0.88rem}
 .summary-bar{padding:10px 22px;background:var(--chalk);border-top:1px solid var(--border);display:flex;gap:20px;font-size:0.8rem;color:var(--text-mid);flex-wrap:wrap}
+.pagination-bar{display:flex;align-items:center;gap:10px;padding:8px 22px;background:var(--chalk);border-top:1px solid var(--border);flex-wrap:wrap}
 .summary-bar strong{color:var(--text-dark)}
 .form-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
 
@@ -168,6 +169,9 @@ table.rec-table{width:100%;border-collapse:collapse}
 .flag-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--steam);font-size:0.82rem}
 .flag-item:last-child{border-bottom:none}
 .flag-dot{width:8px;height:8px;border-radius:50%;background:var(--flag-red);flex-shrink:0;margin-top:4px}
+.btn-outline.active{border-color:var(--accent);color:var(--accent);background:var(--chalk)}
+.dash-preset-row{display:flex;gap:8px}
+.dash-preset-row .btn{flex:1}
 
 /* USERS / ADMIN */
 .users-table{width:100%;border-collapse:collapse}
@@ -197,11 +201,11 @@ table.rec-table{width:100%;border-collapse:collapse}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
 
 /* AUDIT LOG */
-.audit-row{padding:10px 0;border-bottom:1px solid var(--steam);font-size:0.81rem}
+.audit-row{padding:10px 0;border-bottom:1px solid var(--steam);font-size:0.81rem;max-width:100%}
 .audit-row:last-child{border-bottom:none}
 .audit-who{font-weight:600;color:var(--deep)}
-.audit-meta{font-size:0.73rem;color:var(--text-light);margin-top:2px}
-.audit-reason{font-size:0.78rem;color:var(--flag-amber);margin-top:3px;font-style:italic}
+.audit-meta{font-size:0.73rem;color:var(--text-light);margin-top:2px;word-break:break-word;overflow-wrap:anywhere}
+.audit-reason{font-size:0.78rem;color:var(--flag-amber);margin-top:3px;font-style:italic;word-break:break-word;overflow-wrap:anywhere}
 
 /* HAMBURGER BUTTON — hidden on desktop */
 .hamburger-btn{display:none;flex-direction:column;justify-content:center;gap:5px;background:none;border:none;cursor:pointer;padding:10px;margin-left:8px;flex-shrink:0}
@@ -235,10 +239,12 @@ table.rec-table{width:100%;border-collapse:collapse}
   .dash-cols{grid-template-columns:1fr}
   .dash-filters{flex-direction:column;gap:10px;padding:12px}
   .dash-filters .field-group{min-width:0;width:100%}
-  .dash-filters .btn{width:100%}
+  .dash-preset-row{display:flex;gap:8px;width:100%}
+  .dash-preset-row .btn{flex:1;width:auto}
   .entity-add-form{flex-direction:column}
-  .entity-add-form .field-group{width:100%}
+  .entity-add-form .field-group{width:100%;min-width:0}
   .entity-add-form .btn{width:100%;justify-content:center;padding:11px}
+  .entity-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
   .form-actions{flex-direction:column-reverse;gap:10px}
   .form-actions .btn{width:100%;padding:13px;font-size:0.9rem;text-align:center;justify-content:center}
   .add-row-btn{width:100%;justify-content:center;padding:12px;margin-top:8px}
@@ -248,9 +254,79 @@ table.rec-table{width:100%;border-collapse:collapse}
   .rec-controls input,.rec-controls select{width:100%;font-size:1rem;padding:9px 10px}
   #filterNameWrap,.rec-controls [style*="margin-left:auto"]{width:100%}
   .rec-controls [style*="margin-left:auto"] .btn{width:100%;text-align:center}
-  .users-table{font-size:0.78rem}
-  .users-table th,.users-table td{padding:7px 8px}
   .modal{padding:20px 16px}
+}
+/* Users table — card view on mobile */
+@media(max-width:720px){
+  .users-table thead{display:none}
+  .users-table tbody tr{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    border-radius:10px;
+    border:1.5px solid var(--steam);
+    padding:12px;
+    margin-bottom:10px;
+    background:white;
+  }
+  .users-table tbody tr:hover td{background:transparent}
+  /* Name row — full width card title */
+  .users-table td[data-label="name"]{
+    grid-column:1/-1;
+    font-size:0.95rem;
+    font-weight:700;
+    color:var(--deep);
+    padding-bottom:8px;
+    margin-bottom:6px;
+    border-bottom:1px solid var(--steam);
+  }
+  /* Email — full width */
+  .users-table td[data-label="email"]{
+    grid-column:1/-1;
+    color:var(--text-mid);
+    font-size:0.82rem;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    padding:3px 0;
+  }
+  /* Role + Status side by side */
+  .users-table td[data-label="role"],
+  .users-table td[data-label="status"]{
+    padding:4px 0;
+    font-size:0.82rem;
+  }
+  /* Linked Staff — full width */
+  .users-table td[data-label="linked"]{
+    grid-column:1/-1;
+    padding:4px 0;
+  }
+  .users-table td[data-label="linked"] select{width:100%}
+  /* Actions — full width */
+  .users-table td[data-label="actions"]{
+    grid-column:1/-1;
+    display:flex !important;
+    gap:6px;
+    flex-wrap:wrap;
+    padding-top:8px;
+    border-top:1px solid var(--steam);
+    margin-top:4px;
+  }
+  .users-table td[data-label="actions"] .btn{flex:1;font-size:0.8rem;padding:7px 4px;justify-content:center}
+  /* Labels above values */
+  .users-table td{display:block;border:none;padding:3px 0}
+  .users-table td::before{
+    content:attr(data-label-text);
+    display:block;
+    font-size:0.6rem;
+    font-weight:700;
+    color:var(--text-light);
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+    margin-bottom:2px;
+  }
+  .users-table td[data-label="name"]::before,
+  .users-table td[data-label="email"]::before,
+  .users-table td[data-label="actions"]::before{display:none}
 }
 /* Shift table — hide on mobile; shift cards shown instead */
 @media(max-width:700px){
@@ -270,8 +346,10 @@ table.rec-table{width:100%;border-collapse:collapse}
 .shift-card .field-group input[type="date"]{font-size:1rem;padding:10px 9px;border:1.5px solid var(--steam);border-radius:7px;background:white;color:var(--text-dark);width:100%;-webkit-appearance:none;appearance:none;font-family:'DM Sans',sans-serif}
 .shift-card .field-group select:focus,
 .shift-card .field-group input:focus{outline:none;border-color:var(--accent)}
-.shift-card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--steam);margin-top:4px}
+.shift-card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--steam);margin-top:4px;min-height:44px}
 .shift-card-hours{font-weight:700;font-size:1rem;color:var(--deep)}
+.shift-card-footer [data-role="sts"]{flex:1;overflow:hidden}
+.shift-card-footer .break-flag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shift-card-del{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:1.2rem;padding:6px 10px;border-radius:6px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
 .shift-card-del:hover{color:var(--flag-red);background:rgba(192,57,43,0.07)}
 /* Records table — card view on mobile */
@@ -331,6 +409,10 @@ table.rec-table{width:100%;border-collapse:collapse}
     margin-bottom:1px;
   }
   .rec-table td[data-label=""]::before{display:none}
+}
+/* Shift edit modal — single column on small screens */
+@media(max-width:480px){
+  #shiftEditBody > div[style*="grid-template-columns"]{grid-template-columns:1fr !important}
 }
 /* Touch-friendly controls across the board on mobile */
 @media(max-width:700px){
@@ -426,13 +508,15 @@ table.rec-table{width:100%;border-collapse:collapse}
 <!-- ==================== DASHBOARD ==================== -->
 <div class="page" id="page-dashboard">
   <div class="dash-filters">
-    <div class="field-group"><label>From</label><input type="date" id="dashFrom" onchange="renderDashboard()"></div>
-    <div class="field-group"><label>To</label><input type="date" id="dashTo" onchange="renderDashboard()"></div>
+    <div class="field-group"><label>From</label><input type="date" id="dashFrom" onchange="dashPreset=null;_updateDashPresetUI();renderDashboard()"></div>
+    <div class="field-group"><label>To</label><input type="date" id="dashTo" onchange="dashPreset=null;_updateDashPresetUI();renderDashboard()"></div>
     <div class="field-group"><label>Location</label><select id="dashLoc" onchange="renderDashboard()"><option value="">All locations</option></select></div>
     <div class="field-group" id="dashStaffFilterWrap" style="display:none"><label>Staff</label><select id="dashStaffFilter" onchange="renderDashboard()"><option value="">All staff</option></select></div>
-    <button class="btn btn-outline" onclick="setDashPeriod('week')">This Week</button>
-    <button class="btn btn-outline" onclick="setDashPeriod('month')">This Month</button>
-    <button class="btn btn-outline" onclick="setDashPeriod('all')">All Time</button>
+    <div class="dash-preset-row">
+      <button class="btn btn-outline" data-preset="week" onclick="setDashPeriod('week')">This Week</button>
+      <button class="btn btn-outline" data-preset="month" onclick="setDashPeriod('month')">This Month</button>
+      <button class="btn btn-outline" data-preset="all" onclick="setDashPeriod('all')">All Time</button>
+    </div>
   </div>
   <div class="kpi-row" id="kpiRow"></div>
   <div class="dash-cols">
@@ -488,6 +572,7 @@ table.rec-table{width:100%;border-collapse:collapse}
       </table>
       </div>
       <div class="shift-cards-wrap" id="shiftCards"></div>
+      <div id="formTotals" style="font-size:0.77rem;color:var(--text-mid);padding:6px 2px 2px;margin-top:4px"></div>
       <button class="add-row-btn" onclick="addShiftRow()"><span style="font-size:1.1rem;font-weight:700">+</span> Add Shift Row</button>
       <div class="break-rule-note">
         <strong>Break rules:</strong> A 15-minute unpaid break is required for every complete 6-hour block worked.
@@ -504,10 +589,10 @@ table.rec-table{width:100%;border-collapse:collapse}
   <div class="card">
     <div class="card-header"><span>📋</span><h2>Timesheet Records</h2></div>
     <div class="rec-controls">
-      <div id="filterNameWrap"><label>Staff</label><br><input type="text" id="filterName" placeholder="Name..." oninput="renderRecords()" style="margin-top:3px;width:130px"></div>
-      <div><label>Location</label><br><select id="filterLoc" onchange="renderRecords()" style="margin-top:3px;width:130px"><option value="">All</option></select></div>
-      <div><label>From</label><br><input type="date" id="filterFrom" onchange="renderRecords()" style="margin-top:3px"></div>
-      <div><label>To</label><br><input type="date" id="filterTo" onchange="renderRecords()" style="margin-top:3px"></div>
+      <div id="filterNameWrap"><label>Staff</label><br><input type="text" id="filterName" placeholder="Name..." oninput="renderRecords(true)" style="margin-top:3px;width:130px"></div>
+      <div><label>Location</label><br><select id="filterLoc" onchange="renderRecords(true)" style="margin-top:3px;width:130px"><option value="">All</option></select></div>
+      <div><label>From</label><br><input type="date" id="filterFrom" onchange="renderRecords(true)" style="margin-top:3px"></div>
+      <div><label>To</label><br><input type="date" id="filterTo" onchange="renderRecords(true)" style="margin-top:3px"></div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:flex-end">
         <button class="btn btn-outline" onclick="clearFilters()" style="font-size:0.78rem;padding:6px 13px">✕ Clear</button>
         <button class="btn btn-outline" onclick="exportCSV()" style="font-size:0.78rem;padding:6px 13px">⬇ Export</button>
@@ -1088,9 +1173,11 @@ async function bootApp() {
     addShiftRow();
     switchPage('timesheets');
 
+    // Pre-set dashboard to current month so it's ready when user navigates there
     const now = new Date();
     document.getElementById('dashFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     document.getElementById('dashTo').value = now.toISOString().split('T')[0];
+    dashPreset = 'month';
     console.log('[Boot] complete');
 
   } catch(e) {
@@ -1127,7 +1214,7 @@ function switchPage(p) {
   if (p === 'timesheets') { populateLocFilter(); renderRecords().catch(e => { hideLoading(); console.error('renderRecords:', e); }); }
   if (p === 'staff')      renderStaffGrid();
   if (p === 'locations')  renderLocGrid();
-  if (p === 'dashboard')  { populateDashFilters(); renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
+  if (p === 'dashboard')  { populateDashFilters(); if (!document.getElementById('dashFrom').value) setDashPeriod('month'); else renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
   if (p === 'users')      { renderStaffGrid(); renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); }); }
   if (p === 'audit')      renderAuditLog().catch(e => { hideLoading(); console.error('renderAuditLog:', e); });
 }
@@ -1389,7 +1476,7 @@ function renderLocGrid() {
 // ================================================================
 function genTimes() {
   const t = [];
-  for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m += 15)
+  for (let h = 5; h < 24; h++) for (let m = 0; m < 60; m += 15)
     t.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
   return t;
 }
@@ -1474,12 +1561,26 @@ function addShiftTableRow(id, data = {}) {
   td1.appendChild(di); tr.appendChild(td1);
 
   const td2 = document.createElement('td');
-  td2.appendChild(mkSel('s-start', TIME_OPTS.map(t=>({v:t,l:t})), data.start||'09:00', ()=>updateRow(id)));
-  tr.appendChild(td2);
+  const startSel2 = mkSel('s-start', TIME_OPTS.map(t=>({v:t,l:t})), data.start||'09:00', ()=>updateRow(id));
+  td2.appendChild(startSel2); tr.appendChild(td2);
 
   const td3 = document.createElement('td');
-  td3.appendChild(mkSel('s-end', TIME_OPTS.map(t=>({v:t,l:t})), data.end||'17:00', ()=>updateRow(id)));
-  tr.appendChild(td3);
+  const endSel2 = mkSel('s-end', TIME_OPTS.map(t=>({v:t,l:t})), data.end||'17:00', ()=>updateRow(id));
+  endSel2.onchange = (e) => { endSel2.dataset.userSet = 'true'; updateRow(id); };
+  td3.appendChild(endSel2); tr.appendChild(td3);
+
+  startSel2.onchange = () => {
+    if (!endSel2.dataset.userSet) {
+      const startMins = toMins(startSel2.value);
+      const targetMins = Math.min(startMins + 8 * 60, toMins('23:45'));
+      const rounded = Math.round(targetMins / 15) * 15;
+      const hh = String(Math.floor(rounded / 60)).padStart(2,'0');
+      const mm = String(rounded % 60).padStart(2,'0');
+      const target = `${hh}:${mm}`;
+      if (TIME_OPTS.includes(target)) endSel2.value = target;
+    }
+    updateRow(id);
+  };
 
   const td4 = document.createElement('td');
   const locSel = document.createElement('select');
@@ -1500,7 +1601,7 @@ function addShiftTableRow(id, data = {}) {
   const td8 = document.createElement('td');
   const db2 = document.createElement('button');
   db2.className = 'del-row-btn'; db2.textContent = '×'; db2.title = 'Remove row';
-  db2.onclick = () => { tr.remove(); };
+  db2.onclick = () => { tr.remove(); refreshFormTotal(); };
   td8.appendChild(db2); tr.appendChild(td8);
 
   tbody.appendChild(tr);
@@ -1540,12 +1641,25 @@ function addShiftCard(id, data = {}) {
 
   const startFg = document.createElement('div'); startFg.className = 'field-group';
   const startLbl = document.createElement('label'); startLbl.textContent = 'Start';
-  const startSel = mkSel('s-start', TIME_OPTS.map(t=>({v:t,l:t})), data.start||'09:00', ()=>updateCard(id));
+  const startSel = mkSel('s-start', TIME_OPTS.map(t=>({v:t,l:t})), data.start||'09:00', null);
   startFg.appendChild(startLbl); startFg.appendChild(startSel); row2.appendChild(startFg);
 
   const endFg = document.createElement('div'); endFg.className = 'field-group';
   const endLbl = document.createElement('label'); endLbl.textContent = 'End';
-  const endSel = mkSel('s-end', TIME_OPTS.map(t=>({v:t,l:t})), data.end||'17:00', ()=>updateCard(id));
+  const endSel = mkSel('s-end', TIME_OPTS.map(t=>({v:t,l:t})), data.end||'17:00', null);
+  endSel.onchange = () => { endSel.dataset.userSet = 'true'; updateCard(id); };
+  startSel.onchange = () => {
+    if (!endSel.dataset.userSet) {
+      const startMins = toMins(startSel.value);
+      const targetMins = Math.min(startMins + 8 * 60, toMins('23:45'));
+      const rounded = Math.round(targetMins / 15) * 15;
+      const hh = String(Math.floor(rounded / 60)).padStart(2,'0');
+      const mm = String(rounded % 60).padStart(2,'0');
+      const target = `${hh}:${mm}`;
+      if (TIME_OPTS.includes(target)) endSel.value = target;
+    }
+    updateCard(id);
+  };
   endFg.appendChild(endLbl); endFg.appendChild(endSel); row2.appendChild(endFg);
 
   const brkFg = document.createElement('div'); brkFg.className = 'field-group';
@@ -1559,12 +1673,33 @@ function addShiftCard(id, data = {}) {
   const hoursEl = document.createElement('span'); hoursEl.className = 'shift-card-hours'; hoursEl.dataset.role = 'hrs'; footer.appendChild(hoursEl);
   const statusEl = document.createElement('span'); statusEl.dataset.role = 'sts'; footer.appendChild(statusEl);
   const delBtn = document.createElement('button'); delBtn.className = 'shift-card-del'; delBtn.textContent = '✕'; delBtn.title = 'Remove';
-  delBtn.onclick = () => card.remove();
+  delBtn.onclick = () => { card.remove(); refreshFormTotal(); };
   footer.appendChild(delBtn);
   card.appendChild(footer);
 
   wrap.appendChild(card);
   updateCard(id);
+}
+
+function refreshFormTotal() {
+  const el = document.getElementById('formTotals');
+  if (!el) return;
+  const sources = [
+    ...Array.from(document.querySelectorAll('.shift-row')),
+    ...Array.from(document.querySelectorAll('.shift-card'))
+  ];
+  if (!sources.length) { el.textContent = '0 shifts'; return; }
+  let total = 0, incomplete = false;
+  sources.forEach(src => {
+    const s = src.querySelector('.s-start')?.value;
+    const e = src.querySelector('.s-end')?.value;
+    const b = parseInt(src.querySelector('.s-brk')?.value) || 0;
+    const net = calcNetHours(s, e, b);
+    if (net !== null && net > 0) total += net;
+    else incomplete = true;
+  });
+  const count = sources.length;
+  el.textContent = `${count} shift${count !== 1 ? 's' : ''} — ${total.toFixed(2)}h total${incomplete ? ' (some rows incomplete)' : ''}`;
 }
 
 function updateRow(id) {
@@ -1583,6 +1718,7 @@ function updateRow(id) {
     badge.className = `break-flag ${st.type}`; badge.title = st.tip; badge.textContent = st.label;
     sc.appendChild(badge);
   }
+  refreshFormTotal();
 }
 
 function updateCard(id) {
@@ -1601,6 +1737,7 @@ function updateCard(id) {
     badge.className = `break-flag ${st.type}`; badge.title = st.tip; badge.textContent = st.label;
     sc.appendChild(badge);
   }
+  refreshFormTotal();
 }
 
 function getRowData() {
@@ -1678,16 +1815,43 @@ function clearFilters() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  renderRecords();
+  _recSortCol = 'date'; _recSortDir = 'desc';
+  renderRecords(true);
 }
 
 // ================================================================
-// RENDER RECORDS
+// RENDER RECORDS — with pagination and sortable columns
 // ================================================================
-async function renderRecords() {
+let _recPage = 1;
+let _recPageSize = 50;
+let _recSortCol = 'date';
+let _recSortDir = 'desc';
+
+async function renderRecords(resetPage) {
+  if (resetPage) _recPage = 1;
   const cont = document.getElementById('recordsContainer');
   const summ = document.getElementById('summaryBar');
   cont.innerHTML = '<div class="empty-state"><div class="icon" style="font-size:1.5rem">⏳</div><p>Loading...</p></div>';
+
+  const fn = document.getElementById('filterName')?.value.trim().toLowerCase();
+  const fl = document.getElementById('filterLoc')?.value;
+  const ff = document.getElementById('filterFrom')?.value;
+  const ft = document.getElementById('filterTo')?.value;
+
+  // Build sort column mapping
+  const colMap = { date: 'date', net_hours: 'net_hours', name: null };
+  const ascending = _recSortDir === 'asc';
+
+  // Fetch total count for summary bar (always full filtered set)
+  let countQuery = db.from('timesheets')
+    .select('id, net_hours, break_warning, staff:staff_id(name)', { count: 'exact', head: false });
+  if (fl) countQuery = countQuery.eq('location_id', fl);
+  if (ff) countQuery = countQuery.gte('date', ff);
+  if (ft) countQuery = countQuery.lte('date', ft);
+
+  // For server-side sort by name we need all records anyway; handle below
+  const from = (_recPage - 1) * _recPageSize;
+  const to   = from + _recPageSize - 1;
 
   let query = db.from('timesheets')
     .select(`
@@ -1695,18 +1859,25 @@ async function renderRecords() {
       net_hours, break_warning, created_at, amended_at, amendment_reason,
       staff:staff_id ( id, name ),
       location:location_id ( id, name )
-    `, { count: 'exact' })
-    .order('date', { ascending: false })
-    .order('start_time', { ascending: false })
-    .limit(500);
+    `, { count: 'exact' });
 
-  const fn = document.getElementById('filterName')?.value.trim().toLowerCase();
-  const fl = document.getElementById('filterLoc')?.value;
-  const ff = document.getElementById('filterFrom')?.value;
-  const ft = document.getElementById('filterTo')?.value;
   if (fl) query = query.eq('location_id', fl);
   if (ff) query = query.gte('date', ff);
   if (ft) query = query.lte('date', ft);
+
+  // Apply sort — name sort must be done client-side after filter
+  if (_recSortCol === 'date') {
+    query = query.order('date', { ascending }).order('start_time', { ascending: false });
+  } else if (_recSortCol === 'net_hours') {
+    query = query.order('net_hours', { ascending });
+  } else {
+    // name sort: fetch all then sort client-side (no direct server-side join sort)
+    query = query.order('date', { ascending: false });
+  }
+
+  if (_recSortCol !== 'name') {
+    query = query.range(from, to);
+  }
 
   const { data: recs, error, count } = await query;
   if (error) { cont.innerHTML = '<div class="empty-state"><p>Error loading records: ' + esc(error.message) + '</p></div>'; return; }
@@ -1714,39 +1885,55 @@ async function renderRecords() {
   let filtered = recs || [];
   if (fn && isAdminOrManager()) filtered = filtered.filter(r => r.staff?.name?.toLowerCase().includes(fn));
 
+  // Client-side name sort (and pagination for name sort)
+  if (_recSortCol === 'name' && isAdminOrManager()) {
+    filtered.sort((a, b) => {
+      const na = (a.staff?.name || '').toLowerCase();
+      const nb = (b.staff?.name || '').toLowerCase();
+      return ascending ? na.localeCompare(nb) : nb.localeCompare(na);
+    });
+    const totalFiltered = filtered.length;
+    filtered = filtered.slice(from, to + 1);
+    // override count for pagination
+    var _nameSortTotal = totalFiltered;
+  }
+
+  // Totals for summary bar — fetch separately for full filtered set
+  const { data: allForSummary } = await countQuery;
+  let summaryFiltered = allForSummary || [];
+  if (fn && isAdminOrManager()) summaryFiltered = summaryFiltered.filter(r => r.staff?.name?.toLowerCase().includes(fn));
+  let totalNet = 0, totalWarn = 0;
+  summaryFiltered.forEach(r => { totalNet += parseFloat(r.net_hours) || 0; if (r.break_warning) totalWarn++; });
+
   if (!filtered.length) {
     cont.innerHTML = '<div class="empty-state"><div class="icon">🗓</div><p>No timesheet records found.</p></div>';
     summ.innerHTML = '';
     return;
   }
 
-  let totalNet = 0, totalWarn = 0;
   let rows = '';
-
   filtered.forEach(r => {
     const h = parseFloat(r.net_hours) || 0;
-    totalNet += h;
-    if (r.break_warning) totalWarn++;
-
     const stHtml = r.break_warning
       ? '<span class="break-flag error">⚠ Break issue</span>'
       : '<span class="break-flag ok">✓ OK</span>';
 
+    const reason120 = (r.amendment_reason || '').slice(0, 120);
     const amendedHtml = r.amended_at
-      ? `<span class="amended-badge" title="${esc(r.amendment_reason || '')}" onclick="showAmendReason('${esc(r.amendment_reason || 'No reason recorded')}')">✏ Amended</span>`
+      ? `<span class="amended-badge" title="${esc(reason120)}" data-amend-id="${r.id}">✏ Amended</span>`
       : '';
 
     const canEdit   = isAdminOrManager();
     const canDelete = isAdmin();
 
     rows += `<tr>
-      <td data-label="">${esc(r.staff?.name || 'Unknown')}</td>
+      ${isAdminOrManager() ? `<td data-label="">${esc(r.staff?.name || 'Unknown')}</td>` : ''}
       <td data-label="Location">${r.location?.name ? esc(r.location.name) : '<span style="color:var(--text-light);font-style:italic">None</span>'}</td>
       <td data-label="Date">${fmtDate(r.date)}</td>
       <td data-label="Start">${r.start_time?.slice(0,5)}</td>
       <td data-label="End">${r.end_time?.slice(0,5)}</td>
       <td data-label="Break">${r.break_mins > 0 ? r.break_mins + 'm' : '—'}</td>
-      <td data-label="Req.">${r.required_break_mins > 0 ? r.required_break_mins + 'm' : '—'}</td>
+      <td data-label="Break Req." title="Required break minutes based on shift length">${r.required_break_mins > 0 ? r.required_break_mins + 'm' : '—'}</td>
       <td data-label="Net Hrs" style="text-align:center;font-weight:600;color:var(--deep)">${h > 0 ? h.toFixed(2) + 'h' : '--'}</td>
       <td data-label="Status">${stHtml} ${amendedHtml}</td>
       <td data-label="" style="display:flex;gap:5px;align-items:center;justify-content:center">
@@ -1756,24 +1943,84 @@ async function renderRecords() {
     </tr>`;
   });
 
-  const nameCol = isAdminOrManager() ? '<th>Name</th>' : '';
+  // Column headers with sort indicators
+  function sortIcon(col) {
+    if (_recSortCol !== col) return '<span style="color:var(--text-light);font-size:0.75em;margin-left:3px">↕</span>';
+    return _recSortDir === 'asc'
+      ? '<span style="margin-left:3px">↑</span>'
+      : '<span style="margin-left:3px">↓</span>';
+  }
+  function sortTh(col, label, title) {
+    const active = _recSortCol === col;
+    return `<th style="cursor:pointer;user-select:none${active ? ';color:var(--cream)' : ''}" onclick="setSortCol('${col}')" title="Sort by ${label}">${label}${sortIcon(col)}</th>`;
+  }
+
+  const nameCol = isAdminOrManager() ? sortTh('name', 'Name') : '';
   cont.innerHTML = `<div style="overflow-x:auto"><table class="rec-table">
-    <thead><tr>${nameCol}<th>Location</th><th>Date</th><th>Start</th><th>End</th><th>Break</th><th>Req.</th><th>Net Hrs</th><th>Status</th><th></th></tr></thead>
+    <thead><tr>${nameCol}<th>Location</th>${sortTh('date','Date')}<th>Start</th><th>End</th><th>Break</th><th title="Required break minutes based on shift length">Break Req.</th>${sortTh('net_hours','Net Hrs')}<th>Status</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 
-  const overLimit = count > 500;
-  summ.innerHTML = `<span>Showing <strong>${filtered.length}</strong> ${filtered.length === 1 ? 'entry' : 'entries'}${overLimit ? ' (limited to 500 — use date filters to narrow)' : ''}</span>
+  // Wire up amended badge tap behaviour for mobile
+  cont.querySelectorAll('.amended-badge').forEach(badge => {
+    badge.addEventListener('click', function(e) {
+      const existingRow = this.closest('tr')?.nextElementSibling;
+      if (existingRow?.classList.contains('amend-inline-row')) {
+        existingRow.remove(); return;
+      }
+      const tr = this.closest('tr');
+      if (!tr) return;
+      const colCount = tr.querySelectorAll('td').length;
+      const inlineRow = document.createElement('tr');
+      inlineRow.className = 'amend-inline-row';
+      inlineRow.innerHTML = `<td colspan="${colCount}" style="padding:8px 14px;background:rgba(212,130,10,0.06);font-size:0.8rem;color:var(--flag-amber);font-style:italic;border-bottom:1px solid var(--steam)">✏ ${esc(this.title || 'No reason recorded')}</td>`;
+      tr.after(inlineRow);
+    });
+  });
+
+  // Pagination controls
+  const totalItems = _recSortCol === 'name' && typeof _nameSortTotal !== 'undefined' ? _nameSortTotal : (count || 0);
+  const totalPages = Math.max(1, Math.ceil(totalItems / _recPageSize));
+  if (_recPage > totalPages) _recPage = totalPages;
+
+  const pagBar = document.createElement('div');
+  pagBar.className = 'pagination-bar';
+  pagBar.innerHTML = `
+    <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem" onclick="gotoRecPage(${_recPage - 1})" ${_recPage <= 1 ? 'disabled' : ''}>← Previous</button>
+    <span style="font-size:0.82rem;color:var(--text-mid)">Page <strong>${_recPage}</strong> of <strong>${totalPages}</strong></span>
+    <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem" onclick="gotoRecPage(${_recPage + 1})" ${_recPage >= totalPages ? 'disabled' : ''}>Next →</button>
+    <label style="font-size:0.78rem;color:var(--text-mid);display:flex;align-items:center;gap:5px">Rows/page
+      <select style="padding:3px 6px;border:1.5px solid var(--steam);border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.78rem;background:var(--milk)" onchange="setRecPageSize(this.value)">
+        <option value="25" ${_recPageSize===25?'selected':''}>25</option>
+        <option value="50" ${_recPageSize===50?'selected':''}>50</option>
+        <option value="100" ${_recPageSize===100?'selected':''}>100</option>
+      </select>
+    </label>`;
+  cont.appendChild(pagBar);
+
+  summ.innerHTML = `<span>Total: <strong>${totalItems}</strong> ${totalItems === 1 ? 'entry' : 'entries'} &nbsp;|&nbsp; Showing page ${_recPage} of ${totalPages}</span>
     <span>Total net hours: <strong>${totalNet.toFixed(2)}h</strong></span>
     ${totalWarn > 0
       ? `<span style="color:var(--flag-red);font-weight:600">⚠ ${totalWarn} break flag${totalWarn > 1 ? 's' : ''}</span>`
       : '<span style="color:var(--flag-green)">✓ No flags</span>'}`;
 }
 
-function showAmendReason(reason) {
-  document.getElementById('modalTitle').textContent = 'Amendment Reason';
-  document.getElementById('modalMsg').textContent   = reason;
-  document.getElementById('modalConfirmBtn').style.display = 'none';
-  document.getElementById('confirmModal').classList.add('open');
+function gotoRecPage(page) {
+  _recPage = page;
+  renderRecords();
+}
+function setRecPageSize(size) {
+  _recPageSize = parseInt(size);
+  _recPage = 1;
+  renderRecords();
+}
+function setSortCol(col) {
+  if (_recSortCol === col) {
+    _recSortDir = _recSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _recSortCol = col;
+    _recSortDir = col === 'date' ? 'desc' : 'asc';
+  }
+  renderRecords();
 }
 
 // ================================================================
@@ -2043,12 +2290,12 @@ async function renderUsers() {
         availableStaff.map(s => `<option value="${s.id}"${s.user_id === u.id ? ' selected' : ''}>${esc(s.name)}${s.role ? ' (' + esc(s.role) + ')' : ''}</option>`).join('');
 
       return `<tr>
-        <td><span style="display:inline-flex;align-items:center;gap:8px">
+        <td data-label="name"><span style="display:inline-flex;align-items:center;gap:8px">
           <span style="width:30px;height:30px;border-radius:50%;background:${avColor(u.full_name||u.email)};display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:white">${initials(u.full_name||u.email)}</span>
           ${esc(u.full_name || '—')}
         </span></td>
-        <td style="color:var(--text-mid)">${esc(u.email || '')}</td>
-        <td>${canChangeRole && u.id !== currentUser.id
+        <td data-label="email" style="color:var(--text-mid)">${esc(u.email || '')}</td>
+        <td data-label="role" data-label-text="Role">${canChangeRole && u.id !== currentUser.id
           ? `<select class="role-select" onchange="updateUserRole('${u.id}', this.value)">
               <option value="staff"   ${u.role==='staff'  ?'selected':''}>Staff</option>
               <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
@@ -2056,13 +2303,13 @@ async function renderUsers() {
              </select>`
           : roleLabel(u.role)}
         </td>
-        <td>
+        <td data-label="status" data-label-text="Status"><span style="font-size:0.78rem;color:${u.is_active?'var(--flag-green)':'var(--text-light)'}">${u.is_active ? '● Active' : '○ Inactive'}</span></td>
+        <td data-label="linked" data-label-text="Linked Staff">
           ${isAdminOrManager()
-            ? `<select class="role-select" style="min-width:160px" onchange="linkStaffToUser('${u.id}', this.value)">${staffOpts}</select>`
+            ? `<select class="role-select" style="width:100%" onchange="linkStaffToUser('${u.id}', this.value)">${staffOpts}</select>`
             : (linkedStaff ? `<span style="font-size:0.82rem">${esc(linkedStaff.name)}</span>` : '<span style="color:var(--text-light);font-size:0.8rem;font-style:italic">None</span>')}
         </td>
-        <td><span style="font-size:0.78rem;color:${u.is_active?'var(--flag-green)':'var(--text-light)'}">${u.is_active ? '● Active' : '○ Inactive'}</span></td>
-        <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <td data-label="actions" style="display:flex;gap:6px;flex-wrap:wrap">
           ${canDeactivate && u.id !== currentUser.id
             ? `<button class="btn ${u.is_active?'btn-danger-outline':'btn-outline'}" style="padding:4px 10px;font-size:0.76rem"
                 onclick="toggleUserActive('${u.id}', ${u.is_active})">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>`
@@ -2171,6 +2418,17 @@ async function renderAuditLog() {
 // ================================================================
 // DASHBOARD
 // ================================================================
+let dashPreset = 'month';
+
+function _updateDashPresetUI() {
+  ['week','month','all'].forEach(p => {
+    const btn = document.querySelector(`#page-dashboard .dash-preset-row button[data-preset="${p}"]`);
+    if (!btn) return;
+    if (dashPreset === p) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+}
+
 function setDashPeriod(period) {
   const now = new Date();
   let from, to = now.toISOString().split('T')[0];
@@ -2182,6 +2440,8 @@ function setDashPeriod(period) {
   } else { from = ''; to = ''; }
   document.getElementById('dashFrom').value = from;
   document.getElementById('dashTo').value   = to;
+  dashPreset = period;
+  _updateDashPresetUI();
   renderDashboard();
 }
 
