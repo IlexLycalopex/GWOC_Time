@@ -825,7 +825,10 @@ async function setNewPassword() {
     // Clear the URL hash so the invite/recovery token is not reused on refresh
     history.replaceState(null, '', window.location.pathname);
     showToast('Password set — signing you in...');
-    // USER_UPDATED fires next — onAuthStateChange will boot the app
+    // Reload cleanly after a short delay — the session is now established and
+    // a fresh page load will pick it up via INITIAL_SESSION without any invite
+    // token in the URL, booting straight into the app.
+    setTimeout(() => window.location.reload(), 2500);
   } catch (e) {
     hideLoading();
     if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
