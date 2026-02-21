@@ -848,6 +848,17 @@ async function signOut() {
 // Registered inside DOMContentLoaded so the DOM is always ready.
 // Only registered when credentials are actually configured.
 // ================================================================
+
+// Check for invite/recovery tokens in the URL hash BEFORE DOMContentLoaded,
+// because Supabase parses the hash and fires SIGNED_IN before our listener
+// is registered — we need the flag set synchronously.
+const _urlHashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _isInviteLink   = _urlHashParams.get('type') === 'invite';
+const _isRecoveryLink = _urlHashParams.get('type') === 'recovery';
+if (_isInviteLink || _isRecoveryLink) {
+  console.log('[Hash] detected type:', _urlHashParams.get('type'));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
 
   // Close hamburger when clicking outside the header
@@ -881,24 +892,22 @@ document.addEventListener('DOMContentLoaded', () => {
   db.auth.onAuthStateChange(async (event, session) => {
     console.log('[Auth]', event, session?.user?.email || 'no user');
 
-    if (event === 'PASSWORD_RECOVERY') {
+    if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && _isRecoveryLink)) {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appRoot').style.display = 'none';
       showNewPw('reset');
       return;
     }
 
-    // Detect invite link — Supabase fires SIGNED_IN with type=invite in the URL hash
-    if (event === 'SIGNED_IN' && session?.user) {
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-      if (hashParams.get('type') === 'invite') {
-        console.log('[Auth] invite link detected — showing set password screen');
-        currentUser = session.user;
-        document.getElementById('authScreen').style.display = 'flex';
-        document.getElementById('appRoot').style.display = 'none';
-        showNewPw('invite');
-        return;
-      }
+    // Detect invite link — use flag set before DOMContentLoaded because Supabase
+    // parses the hash and fires SIGNED_IN before our listener is registered.
+    if (event === 'SIGNED_IN' && session?.user && _isInviteLink) {
+      console.log('[Auth] invite link — showing set password screen');
+      currentUser = session.user;
+      document.getElementById('authScreen').style.display = 'flex';
+      document.getElementById('appRoot').style.display = 'none';
+      showNewPw('invite');
+      return;
     }
 
     if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION')) {
