@@ -679,7 +679,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    flowType: "pkce",
+    flowType: 'implicit',   // Invite and recovery links use hash tokens — PKCE requires a server callback that GitHub Pages cannot provide
     detectSessionInUrl: true,
     persistSession: true,
     autoRefreshToken: true
