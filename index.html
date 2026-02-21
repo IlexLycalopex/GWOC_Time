@@ -890,27 +890,31 @@ document.addEventListener('DOMContentLoaded', () => {
   let _booting   = false;
 
   db.auth.onAuthStateChange(async (event, session) => {
-    console.log('[Auth]', event, session?.user?.email || 'no user');
+    console.log('[Auth]', event, session?.user?.email || 'no user', 'invite:', _isInviteLink, 'recovery:', _isRecoveryLink);
 
-    if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && _isRecoveryLink)) {
+    // PASSWORD_RECOVERY event (from reset link)
+    if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appRoot').style.display = 'none';
       showNewPw('reset');
       return;
     }
 
-    // Detect invite link — use flag set before DOMContentLoaded because Supabase
-    // parses the hash and fires SIGNED_IN before our listener is registered.
-    if (event === 'SIGNED_IN' && session?.user && _isInviteLink) {
-      console.log('[Auth] invite link — showing set password screen');
+    // Invite or recovery link — intercept any event that has a session
+    // Use pre-computed flags because Supabase may fire before our listener registered
+    if (session?.user && (_isInviteLink || _isRecoveryLink)) {
+      console.log('[Auth] intercepting for invite/recovery');
       currentUser = session.user;
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appRoot').style.display = 'none';
-      showNewPw('invite');
+      showNewPw(_isInviteLink ? 'invite' : 'reset');
       return;
     }
 
-    if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION')) {
+    // INITIAL_SESSION with no session and no special link — show sign in
+    // Guard: if we have an invite/recovery link in the URL, don't show sign-in
+    // even if the session hasn't resolved yet (token exchange is still in flight)
+    if (event === 'SIGNED_OUT' || (!session && event === 'INITIAL_SESSION' && !_isInviteLink && !_isRecoveryLink)) {
       _appBooted = false;
       _booting   = false;
       currentUser = null;
