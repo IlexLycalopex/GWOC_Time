@@ -41,7 +41,7 @@ No build step. No Node.js. No framework. The app is a single HTML file that can 
 See [`docs/SETUP.md`](docs/SETUP.md) for the full step-by-step setup guide.
 
 The short version:
-1. Create a Supabase project
+1. Create a [Supabase](https://supabase.com/) project
 2. Run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor
 3. Deploy [`supabase/functions/gwoc-user-admin/index.ts`](supabase/functions/gwoc-user-admin/index.ts) as an Edge Function
 4. Set your Supabase URL and anon key in `index.html` (lines marked `CONFIGURATION`)
