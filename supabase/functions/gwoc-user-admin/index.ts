@@ -1,23 +1,14 @@
 // supabase/functions/gwoc-user-admin/index.ts
 //
-// Handles all admin user operations that require the service role key,
-// keeping that key off the browser entirely.
+// Handles all admin user operations that require the service role key.
 //
-// Actions (passed as JSON body field "action"):
-//   invite       — send initial invite email to a new user
-//   resend       — resend invite email to an existing pending user
-//   delete_user  — permanently remove a user from Auth + profiles
+// Actions:
+//   invite        — send initial invite email to a new user (auto-creates staff record)
+//   resend        — resend invite email to an existing pending user
+//   archive_user  — disable login + mark archived (soft delete, data preserved)
+//   unarchive_user — restore login + mark active
+//   delete_user   — PERMANENT removal from Auth + profiles (admin only, nuclear option)
 //
-// DEPLOY:
-//   1. Supabase Dashboard > Edge Functions > New Function
-//   2. Name it exactly:  gwoc-user-admin
-//   3. Paste this file and click Deploy
-//
-// ENV VARS (all auto-injected by Supabase — no manual setup needed):
-//   SUPABASE_URL
-//   SUPABASE_ANON_KEY
-//   SUPABASE_SERVICE_ROLE_KEY
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -34,14 +25,12 @@ function json(data: unknown, status = 200) {
 
 Deno.serve(async (req) => {
 
-  // ── CORS preflight ────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Version stamp — confirms this deployment is live
   if (req.method === 'GET') {
-    return json({ version: 'gwoc-user-admin-v3', ok: true });
+    return json({ version: 'gwoc-user-admin-v4', ok: true });
   }
 
   try {
@@ -49,34 +38,25 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const anonKey        = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
-    console.log('[v3] env — URL:', !!supabaseUrl, 'SRK:', !!serviceRoleKey, 'ANON:', !!anonKey);
-
     const authHeader = req.headers.get('Authorization') ?? '';
     const token      = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    console.log('[v3] token length:', token.length, 'prefix:', token.slice(0, 20));
-
     if (!token) return json({ error: 'Unauthorised — no token provided' }, 401);
 
-    // Admin client for privileged operations
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Verify the caller's JWT.
-    // Try three methods in order — Supabase version differences mean one
-    // approach may work where another fails.
+    // Verify the caller's JWT
     let caller = null;
     let verifyErr = '';
 
-    // Method 1: admin.getUser with explicit token
     try {
       const r = await adminClient.auth.admin.getUser(token);
-      if (r.data?.user) { caller = r.data.user; console.log('[v3] verified via method 1'); }
+      if (r.data?.user) { caller = r.data.user; }
       else verifyErr = r.error?.message ?? 'method 1 null user';
     } catch(e) { verifyErr = String(e); }
 
-    // Method 2: user-scoped client with anon key
     if (!caller && anonKey) {
       try {
         const uc = createClient(supabaseUrl, anonKey, {
@@ -84,12 +64,11 @@ Deno.serve(async (req) => {
           auth:   { autoRefreshToken: false, persistSession: false },
         });
         const r = await uc.auth.getUser();
-        if (r.data?.user) { caller = r.data.user; console.log('[v3] verified via method 2'); }
+        if (r.data?.user) { caller = r.data.user; }
         else verifyErr = r.error?.message ?? 'method 2 null user';
       } catch(e) { verifyErr = String(e); }
     }
 
-    // Method 3: user-scoped client with service role key carrying user header
     if (!caller) {
       try {
         const uc = createClient(supabaseUrl, serviceRoleKey, {
@@ -97,18 +76,15 @@ Deno.serve(async (req) => {
           auth:   { autoRefreshToken: false, persistSession: false },
         });
         const r = await uc.auth.getUser();
-        if (r.data?.user) { caller = r.data.user; console.log('[v3] verified via method 3'); }
+        if (r.data?.user) { caller = r.data.user; }
         else verifyErr = r.error?.message ?? 'method 3 null user';
       } catch(e) { verifyErr = String(e); }
     }
-
-    console.log('[v3] caller:', caller?.id ?? 'none', 'lastErr:', verifyErr);
 
     if (!caller) {
       return json({ error: 'Unauthorised — could not verify token', detail: verifyErr }, 401);
     }
 
-    // ── Check caller role ─────────────────────────────────────────────
     const { data: callerProfile, error: profileErr } = await adminClient
       .from('profiles')
       .select('role, full_name, email')
@@ -127,18 +103,15 @@ Deno.serve(async (req) => {
       return json({ error: 'You do not have permission to manage users' }, 403);
     }
 
-    // ── Parse request body ────────────────────────────────────────────
     let body: Record<string, string> = {};
     try { body = await req.json(); } catch (_) { return json({ error: 'Invalid JSON body' }, 400); }
 
     const { action } = body;
     if (!action) return json({ error: 'Missing required field: action' }, 400);
 
-    // Hardcode the full app path — origin alone gives https://ilexlycalopex.github.io
-    // which 404s because the app lives at /GWOC_Time/
     const redirectTo = 'https://ilexlycalopex.github.io/GWOC_Time/';
 
-    // ── INVITE ────────────────────────────────────────────────────────
+    // ── INVITE / RESEND ───────────────────────────────────────────────
     if (action === 'invite' || action === 'resend') {
       const { email, full_name, role } = body;
 
@@ -162,9 +135,9 @@ Deno.serve(async (req) => {
 
       if (inviteErr) return json({ error: inviteErr.message }, 400);
 
-      // Belt-and-braces: ensure profiles row exists (trigger should create it,
-      // but creates it manually if the trigger isn't installed)
       const userId = inviteData?.user?.id;
+
+      // Ensure profiles row exists
       if (userId) {
         const { error: profileCheckErr } = await adminClient
           .from('profiles')
@@ -177,32 +150,76 @@ Deno.serve(async (req) => {
             id: userId, email, full_name, role, is_active: true,
           });
         }
+
+        // Auto-create a linked staff record if one doesn't exist for this user
+        if (action === 'invite') {
+          const { data: existingStaff } = await adminClient
+            .from('staff')
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (!existingStaff) {
+            await adminClient.from('staff').insert({ name: full_name, user_id: userId });
+          }
+        }
       }
 
       return json({ success: true, user_id: userId });
     }
 
-    // ── DELETE USER ───────────────────────────────────────────────────
+    // ── ARCHIVE USER ─────────────────────────────────────────────────
+    if (action === 'archive_user') {
+      const { user_id } = body;
+      if (!user_id) return json({ error: 'user_id is required' }, 400);
+      if (!isAdmin) return json({ error: 'Only admins can archive users' }, 403);
+      if (user_id === caller.id) return json({ error: 'You cannot archive your own account' }, 400);
+
+      // Disable their auth login (ban for ~100 years)
+      const { error: banErr } = await adminClient.auth.admin.updateUserById(user_id, {
+        ban_duration: '876000h'
+      });
+      if (banErr) return json({ error: banErr.message }, 400);
+
+      // Mark as archived + inactive in profiles
+      await adminClient.from('profiles').update({ is_archived: true, is_active: false }).eq('id', user_id);
+
+      return json({ success: true });
+    }
+
+    // ── UNARCHIVE USER ───────────────────────────────────────────────
+    if (action === 'unarchive_user') {
+      const { user_id } = body;
+      if (!user_id) return json({ error: 'user_id is required' }, 400);
+      if (!isAdmin) return json({ error: 'Only admins can unarchive users' }, 403);
+
+      // Remove the ban
+      const { error: unbanErr } = await adminClient.auth.admin.updateUserById(user_id, {
+        ban_duration: 'none'
+      });
+      if (unbanErr) return json({ error: unbanErr.message }, 400);
+
+      // Mark as active in profiles
+      await adminClient.from('profiles').update({ is_archived: false, is_active: true }).eq('id', user_id);
+
+      return json({ success: true });
+    }
+
+    // ── DELETE USER (permanent — admin nuclear option) ────────────────
     if (action === 'delete_user') {
       const { user_id } = body;
       if (!user_id) return json({ error: 'user_id is required' }, 400);
-
-      // Only admins can delete users
       if (!isAdmin) return json({ error: 'Only admins can remove users' }, 403);
-
-      // Prevent self-deletion
       if (user_id === caller.id) return json({ error: 'You cannot remove your own account' }, 400);
 
       const { error: deleteErr } = await adminClient.auth.admin.deleteUser(user_id);
       if (deleteErr) return json({ error: deleteErr.message }, 400);
 
-      // Explicit profile cleanup (cascade should handle it, this is a fallback)
       await adminClient.from('profiles').delete().eq('id', user_id);
 
       return json({ success: true });
     }
 
-    // ── Unknown action ────────────────────────────────────────────────
     return json({ error: `Unknown action: ${action}` }, 400);
 
   } catch (err) {

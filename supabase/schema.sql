@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   full_name   text,
   role        text        NOT NULL DEFAULT 'staff' CHECK (role IN ('staff','manager','admin')),
   is_active   boolean     NOT NULL DEFAULT true,
+  phone       text,                              -- Optional contact phone number
+  is_archived boolean     NOT NULL DEFAULT false, -- Soft-delete: preserves data, blocks login
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 

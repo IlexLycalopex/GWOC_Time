@@ -423,6 +423,46 @@ table.rec-table{width:100%;border-collapse:collapse}
   .role-select{min-height:40px;font-size:0.9rem}
   .entity-del,.del-row-btn{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
 }
+
+/* CALENDAR */
+.cal-nav{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap;padding:16px 20px;background:white;border-radius:13px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.cal-title{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--deep);font-weight:600;flex:1;text-align:center}
+.cal-grid-wrap{background:var(--steam);border-radius:13px;box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.cal-head-cell{background:var(--deep);color:var(--cream);text-align:center;padding:8px 4px;font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em}
+.cal-day{background:white;min-height:90px;padding:6px;vertical-align:top}
+.cal-day.other-month{background:var(--chalk)}
+.cal-day.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-day-num{font-size:0.68rem;font-weight:600;color:var(--text-light);margin-bottom:4px;display:block}
+.cal-day.today .cal-day-num{color:var(--accent);font-weight:700}
+.cal-bubble{display:flex;align-items:center;gap:3px;padding:2px 5px 2px 3px;border-radius:10px;font-size:0.63rem;font-weight:600;color:white;margin-bottom:2px;line-height:1.4;overflow:hidden}
+.cal-bubble-init{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:700;flex-shrink:0}
+@media(max-width:720px){
+  .cal-day{min-height:55px;padding:3px}
+  .cal-day-num{font-size:0.58rem}
+  .cal-bubble{font-size:0.52rem;padding:1px 3px 1px 2px}
+  .cal-bubble-init{width:12px;height:12px;font-size:0.42rem}
+}
+
+/* DEACTIVATED BANNER */
+.deactivated-banner{background:rgba(192,57,43,0.08);border:1.5px solid rgba(192,57,43,0.3);border-radius:10px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:0.85rem;color:var(--flag-red);font-weight:500}
+
+/* ARCHIVED USER ROW */
+.users-table tr.archived-row td{opacity:0.55}
+.archived-tag{font-size:0.65rem;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(122,149,170,0.18);color:var(--text-light);text-transform:uppercase;letter-spacing:0.05em;vertical-align:middle;margin-left:5px}
+
+/* PROFILE BUTTON */
+.profile-btn{background:none;border:1.5px solid rgba(255,255,255,0.18);border-radius:20px;padding:4px 11px 4px 6px;display:flex;align-items:center;gap:7px;cursor:pointer;color:rgba(240,244,248,0.75);font-family:'DM Sans',sans-serif;font-size:0.78rem;transition:all 0.15s}
+.profile-btn:hover{background:rgba(255,255,255,0.1);color:var(--cream)}
+.profile-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.58rem;font-weight:700;color:white;flex-shrink:0}
+
+/* REQUIRED FIELD */
+.req{color:var(--flag-red)}
+
+/* USERS TABLE MOBILE — improved for fewer columns */
+@media(max-width:720px){
+  .users-table tbody tr{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -490,15 +530,17 @@ table.rec-table{width:100%;border-collapse:collapse}
     <div class="nav-tab hidden" id="tab-locations" onclick="switchPage('locations')">Locations</div>
     <div class="nav-tab hidden" id="tab-users" onclick="switchPage('users')">Users</div>
     <div class="nav-tab hidden" id="tab-audit" onclick="switchPage('audit')">Audit Log</div>
+    <div class="nav-tab hidden" id="tab-calendar" onclick="switchPage('calendar')">Calendar</div>
   </nav>
   <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleHamburger()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
   <div class="header-user">
-    <div class="user-pill">
-      <span id="headerUserName" style="font-size:0.8rem;color:rgba(240,244,248,0.7)"></span>
+    <button class="profile-btn" onclick="openProfileModal()" title="Edit your profile">
+      <div class="profile-avatar" id="headerAvatar" style="background:#3d8bcd">?</div>
+      <span id="headerUserName" style="font-size:0.78rem"></span>
       <span class="user-role-badge" id="headerRoleBadge"></span>
-    </div>
+    </button>
     <button class="logout-btn" onclick="signOut()">Sign out</button>
   </div>
 </header>
@@ -546,7 +588,7 @@ table.rec-table{width:100%;border-collapse:collapse}
       <!-- Staff selector: managers/admins can choose any staff; staff members see their own name -->
       <div style="display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
         <div class="field-group" style="min-width:220px;max-width:300px;flex:1" id="staffSelectWrap">
-          <label>Staff Member</label>
+          <label>Team Member</label>
           <select id="staffSelect" style="-webkit-appearance:none;appearance:none">
             <option value="">Select staff member...</option>
           </select>
@@ -595,7 +637,8 @@ table.rec-table{width:100%;border-collapse:collapse}
       <div><label>To</label><br><input type="date" id="filterTo" onchange="renderRecords(true)" style="margin-top:3px"></div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:flex-end">
         <button class="btn btn-outline" onclick="clearFilters()" style="font-size:0.78rem;padding:6px 13px">✕ Clear</button>
-        <button class="btn btn-outline" onclick="exportCSV()" style="font-size:0.78rem;padding:6px 13px">⬇ Export</button>
+        <button class="btn btn-outline" onclick="exportCSV()" style="font-size:0.78rem;padding:6px 13px">⬇ CSV</button>
+        <button class="btn btn-outline" id="pdfExportBtn" style="display:none;font-size:0.78rem;padding:6px 13px" onclick="exportPDF()">📄 PDF</button>
       </div>
     </div>
     <div id="recordsContainer"></div>
@@ -621,24 +664,9 @@ table.rec-table{width:100%;border-collapse:collapse}
 <!-- ==================== USERS ==================== -->
 <div class="page" id="page-users">
 
-  <!-- STAFF RECORDS CARD -->
+  <!-- INVITE + USER LIST CARD -->
   <div class="card">
-    <div class="card-header"><span>👤</span><h2>Staff Records</h2></div>
-    <div class="card-body">
-      <div class="entity-add-form">
-        <div class="field-group" style="min-width:130px;flex:1"><label>First Name</label><input type="text" id="newFirst" placeholder="e.g. Sarah" autocomplete="off"></div>
-        <div class="field-group" style="min-width:130px;flex:1"><label>Last Name</label><input type="text" id="newLast" placeholder="e.g. Mitchell" autocomplete="off"></div>
-        <div class="field-group" style="min-width:120px;flex:1"><label>Job Title <span style="font-weight:400;font-size:0.68rem">(optional)</span></label><input type="text" id="newRole" placeholder="e.g. Barista" autocomplete="off"></div>
-        <button class="btn btn-primary" onclick="addStaff()" style="flex-shrink:0;white-space:nowrap">Add Staff Member</button>
-      </div>
-      <p style="font-size:0.75rem;color:var(--text-light);margin-bottom:16px;margin-top:-8px">Staff records represent physical employees. Link them to a login account below so they can log their own timesheets.</p>
-      <div id="staffGrid"></div>
-    </div>
-  </div>
-
-  <!-- USER ACCOUNTS CARD -->
-  <div class="card">
-    <div class="card-header"><span>👥</span><h2>User Accounts</h2></div>
+    <div class="card-header"><span>👥</span><h2>Users</h2></div>
     <div class="card-body">
       <div class="entity-add-form" style="background:var(--chalk);padding:18px;border-radius:10px;margin-bottom:22px;border:none">
         <div style="width:100%;margin-bottom:10px;font-size:0.78rem;color:var(--text-mid);font-weight:500">Invite a new user — they will receive an email to set their password.</div>
@@ -669,6 +697,19 @@ table.rec-table{width:100%;border-collapse:collapse}
     <div class="card-body">
       <div id="auditContainer"><div class="empty-state"><div class="icon">📜</div><p>Loading audit log...</p></div></div>
     </div>
+  </div>
+</div>
+
+<!-- ==================== CALENDAR ==================== -->
+<div class="page" id="page-calendar">
+  <div class="cal-nav">
+    <button class="btn btn-outline" onclick="calChangeMonth(-1)" style="flex-shrink:0">← Prev</button>
+    <div class="cal-title" id="calTitle">Loading...</div>
+    <button class="btn btn-outline" onclick="calChangeMonth(1)" style="flex-shrink:0">Next →</button>
+    <div style="font-size:0.75rem;color:var(--text-mid);width:100%;text-align:center;margin-top:-4px">Coloured bubbles show each team member's hours and location per day</div>
+  </div>
+  <div class="cal-grid-wrap">
+    <div class="cal-grid" id="calGrid"></div>
   </div>
 </div>
 
@@ -723,12 +764,37 @@ table.rec-table{width:100%;border-collapse:collapse}
     <h3>✏️ Amend Timesheet Entry</h3>
     <p style="margin-bottom:14px">You are editing a timesheet entry as a manager or admin. A reason is required and will be saved to the audit log.</p>
     <div class="field-group" style="margin-bottom:16px">
-      <label>Reason for Amendment</label>
-      <textarea id="amendReason" placeholder="e.g. Incorrect end time recorded by staff member — corrected from 17:00 to 16:30."></textarea>
+      <label>Reason for Amendment <span class="req">*</span></label>
+      <textarea id="amendReason" placeholder="e.g. Incorrect end time recorded by staff member — corrected from 17:00 to 16:30." style="min-height:80px"></textarea>
+      <div id="amendReasonErr" style="display:none;color:var(--flag-red);font-size:0.77rem;margin-top:4px">⚠ A reason is required before saving the amendment.</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeAmendModal()">Cancel</button>
       <button class="btn btn-primary" id="amendConfirmBtn">Confirm Amendment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile edit modal -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal" style="max-width:480px">
+    <h3>My Profile</h3>
+    <p style="margin-bottom:16px">Update your display name and contact details.</p>
+    <div class="field-group" style="margin-bottom:14px">
+      <label>Full Name</label>
+      <input type="text" id="profileName" placeholder="Your full name" autocomplete="name">
+    </div>
+    <div class="field-group" style="margin-bottom:14px">
+      <label>Phone <span style="font-weight:400;font-size:0.7rem;text-transform:none">(optional)</span></label>
+      <input type="tel" id="profilePhone" placeholder="e.g. 07700 900000" autocomplete="tel">
+    </div>
+    <div class="field-group" style="margin-bottom:16px">
+      <label>Email</label>
+      <input type="email" id="profileEmail" disabled style="background:var(--chalk);color:var(--text-light);cursor:not-allowed">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('profileModal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProfileModal()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -1122,7 +1188,11 @@ async function bootApp() {
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
 
-    document.getElementById('headerUserName').textContent = currentProfile?.full_name || currentProfile?.email || '';
+    // Header: avatar + name + role badge
+    const name = currentProfile?.full_name || currentProfile?.email || '';
+    document.getElementById('headerUserName').textContent = name;
+    const av = document.getElementById('headerAvatar');
+    if (av) { av.textContent = initials(name); av.style.background = avColor(name); }
     const rb = document.getElementById('headerRoleBadge');
     rb.textContent = (currentProfile?.role || 'staff').charAt(0).toUpperCase() + (currentProfile?.role || 'staff').slice(1);
     rb.className = 'user-role-badge role-' + (currentProfile?.role || 'staff');
@@ -1135,6 +1205,14 @@ async function bootApp() {
     } else {
       showTabs(['tab-dashboard','tab-timesheets']);
     }
+    // Calendar tab: admin only
+    if (role === 'admin') {
+      showTabs(['tab-calendar']);
+    }
+
+    // PDF export button: admin only
+    const pdfBtn = document.getElementById('pdfExportBtn');
+    if (pdfBtn && isAdmin()) pdfBtn.style.display = '';
 
     if (!isAdminOrManager()) {
       const sw = document.getElementById('staffSelectWrap');
@@ -1143,7 +1221,6 @@ async function bootApp() {
       const fw = document.getElementById('filterNameWrap');
       if (sw) sw.style.display = 'none';
       if (sr) sr.style.display = 'block';
-      // staffNameDisplay is set after loadStaff() resolves — see updateStaffNameDisplay()
       if (sd) sd.textContent = currentProfile?.full_name || currentProfile?.email || '...';
       if (fw) fw.style.display = 'none';
     }
@@ -1165,6 +1242,18 @@ async function bootApp() {
 
     // For staff users, update the "Logging for" display with their linked staff name
     if (!isAdminOrManager()) updateStaffNameDisplay();
+
+    // Show deactivated banner for inactive users
+    if (currentProfile?.is_active === false) {
+      const main = document.querySelector('main');
+      if (main) {
+        const banner = document.createElement('div');
+        banner.className = 'deactivated-banner';
+        banner.id = 'deactivatedBanner';
+        banner.innerHTML = '<span style="font-size:1.2rem">🔒</span> <span>Your account is <strong>deactivated</strong>. You can view records but cannot submit or edit timesheets. Contact an admin to restore access.</span>';
+        main.prepend(banner);
+      }
+    }
 
     // Guarantee exactly one blank row — clear in case anything pre-populated
     document.getElementById('shiftRows').innerHTML  = '';
@@ -1212,11 +1301,11 @@ function switchPage(p) {
   if (tab)  tab.classList.add('active');
 
   if (p === 'timesheets') { populateLocFilter(); renderRecords().catch(e => { hideLoading(); console.error('renderRecords:', e); }); }
-  if (p === 'staff')      renderStaffGrid();
   if (p === 'locations')  renderLocGrid();
   if (p === 'dashboard')  { populateDashFilters(); if (!document.getElementById('dashFrom').value) setDashPeriod('month'); else renderDashboard().catch(e => { hideLoading(); console.error('renderDashboard:', e); }); }
-  if (p === 'users')      { renderStaffGrid(); renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); }); }
+  if (p === 'users')      renderUsers().catch(e => { hideLoading(); console.error('renderUsers:', e); });
   if (p === 'audit')      renderAuditLog().catch(e => { hideLoading(); console.error('renderAuditLog:', e); });
+  if (p === 'calendar')   renderCalendar().catch(e => { hideLoading(); console.error('renderCalendar:', e); });
 }
 
 // ================================================================
@@ -1305,6 +1394,7 @@ async function deleteStaff(id) {
 
 function renderStaffGrid() {
   const grid = document.getElementById('staffGrid');
+  if (!grid) return; // Staff grid not rendered — managed automatically via user invites
   if (!staffList.length) {
     grid.innerHTML = '<div class="empty-state" style="padding:24px 0"><div class="icon">👤</div><p>No staff added yet.</p></div>';
     return;
@@ -1765,6 +1855,10 @@ function getRowData() {
 // TIMESHEET SAVE
 // ================================================================
 async function saveEntry() {
+  if (currentProfile?.is_active === false) {
+    showToast('Your account is deactivated — contact an admin to submit timesheets.');
+    return;
+  }
   const btn = document.querySelector('#page-timesheets .btn-primary[onclick="saveEntry()"]');
   let staff_id;
 
@@ -2105,13 +2199,27 @@ async function editShift(id) {
 
 document.getElementById('shiftEditSaveBtn').onclick = () => {
   document.getElementById('shiftEditModal').classList.remove('open');
-  document.getElementById('amendReason').value = '';
+  const ta = document.getElementById('amendReason');
+  ta.value = '';
+  ta.style.borderColor = '';
+  const errEl = document.getElementById('amendReasonErr');
+  if (errEl) errEl.style.display = 'none';
   document.getElementById('amendModal').classList.add('open');
+  setTimeout(() => ta.focus(), 150);
 };
 
 document.getElementById('amendConfirmBtn').onclick = async () => {
-  const reason = document.getElementById('amendReason').value.trim();
-  if (!reason) { showToast('Please enter a reason for the amendment'); return; }
+  const ta     = document.getElementById('amendReason');
+  const errEl  = document.getElementById('amendReasonErr');
+  const reason = ta.value.trim();
+  if (!reason) {
+    ta.style.borderColor = 'var(--flag-red)';
+    ta.focus();
+    if (errEl) errEl.style.display = 'block';
+    return;
+  }
+  ta.style.borderColor = '';
+  if (errEl) errEl.style.display = 'none';
   if (!_editShiftId) { showToast('No record selected'); return; }
 
   const btn    = document.getElementById('amendConfirmBtn');
@@ -2219,6 +2327,9 @@ async function inviteUser() {
     const result = await callUserAdmin({ action: 'invite', email, full_name: name, role });
     document.getElementById('inviteEmail').value = '';
     document.getElementById('inviteName').value  = '';
+    // The Edge Function auto-creates a linked staff record.
+    // Refresh local staff cache so the new member appears in selectors.
+    await loadStaff();
     showToast(`Invite sent to ${email}`);
     renderUsers().catch(e => console.error('renderUsers after invite:', e));
   } catch(e) {
@@ -2275,41 +2386,34 @@ async function renderUsers() {
   const canChangeRole = isAdmin();
   const canDeactivate = isAdmin();
 
-  // Build staff options for the link dropdown (unlinked staff + current link)
-  const linkedUserIds = staffList.filter(s => s.user_id).map(s => s.user_id);
+  // Separate active from archived users
+  const activeUsers   = data.filter(u => !u.is_archived);
+  const archivedUsers = data.filter(u => u.is_archived);
 
-  wrap.innerHTML = `<table class="users-table">
-    <thead><tr>
-      <th>Name</th><th>Email</th><th>Role</th><th>Linked Staff Record</th><th>Status</th><th>Actions</th>
-    </tr></thead>
-    <tbody>${data.map(u => {
-      const linkedStaff = staffList.find(s => s.user_id === u.id);
-      // Available: unlinked staff + the one already linked to this user
-      const availableStaff = staffList.filter(s => !s.user_id || s.user_id === u.id);
-      const staffOpts = `<option value="">— Not linked —</option>` +
-        availableStaff.map(s => `<option value="${s.id}"${s.user_id === u.id ? ' selected' : ''}>${esc(s.name)}${s.role ? ' (' + esc(s.role) + ')' : ''}</option>`).join('');
+  function buildRow(u) {
+    const isArchived = u.is_archived;
+    const statusColor = isArchived ? 'var(--text-light)' : (u.is_active ? 'var(--flag-green)' : 'var(--flag-amber)');
+    const statusLabel = isArchived ? '⊘ Archived' : (u.is_active ? '● Active' : '○ Deactivated');
 
-      return `<tr>
-        <td data-label="name"><span style="display:inline-flex;align-items:center;gap:8px">
-          <span style="width:30px;height:30px;border-radius:50%;background:${avColor(u.full_name||u.email)};display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:white">${initials(u.full_name||u.email)}</span>
-          ${esc(u.full_name || '—')}
-        </span></td>
-        <td data-label="email" style="color:var(--text-mid)">${esc(u.email || '')}</td>
-        <td data-label="role" data-label-text="Role">${canChangeRole && u.id !== currentUser.id
-          ? `<select class="role-select" onchange="updateUserRole('${u.id}', this.value)">
-              <option value="staff"   ${u.role==='staff'  ?'selected':''}>Staff</option>
-              <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
-              <option value="admin"   ${u.role==='admin'  ?'selected':''}>Admin</option>
-             </select>`
-          : roleLabel(u.role)}
-        </td>
-        <td data-label="status" data-label-text="Status"><span style="font-size:0.78rem;color:${u.is_active?'var(--flag-green)':'var(--text-light)'}">${u.is_active ? '● Active' : '○ Inactive'}</span></td>
-        <td data-label="linked" data-label-text="Linked Staff">
-          ${isAdminOrManager()
-            ? `<select class="role-select" style="width:100%" onchange="linkStaffToUser('${u.id}', this.value)">${staffOpts}</select>`
-            : (linkedStaff ? `<span style="font-size:0.82rem">${esc(linkedStaff.name)}</span>` : '<span style="color:var(--text-light);font-size:0.8rem;font-style:italic">None</span>')}
-        </td>
-        <td data-label="actions" style="display:flex;gap:6px;flex-wrap:wrap">
+    return `<tr class="${isArchived ? 'archived-row' : ''}">
+      <td data-label="name"><span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="width:30px;height:30px;border-radius:50%;background:${avColor(u.full_name||u.email)};display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:white;flex-shrink:0">${initials(u.full_name||u.email)}</span>
+        <span>${esc(u.full_name || '—')}${isArchived ? ' <span class="archived-tag">archived</span>' : ''}</span>
+      </span></td>
+      <td data-label="email" data-label-text="Email" style="color:var(--text-mid);word-break:break-all">${esc(u.email || '')}</td>
+      <td data-label="role" data-label-text="Role">${canChangeRole && u.id !== currentUser.id && !isArchived
+        ? `<select class="role-select" onchange="updateUserRole('${u.id}', this.value)">
+            <option value="staff"   ${u.role==='staff'  ?'selected':''}>Staff</option>
+            <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
+            <option value="admin"   ${u.role==='admin'  ?'selected':''}>Admin</option>
+           </select>`
+        : roleLabel(u.role)}
+      </td>
+      <td data-label="status" data-label-text="Status"><span style="font-size:0.78rem;color:${statusColor}">${statusLabel}</span></td>
+      <td data-label="actions" style="display:flex;gap:6px;flex-wrap:wrap">
+        ${isArchived ? `
+          ${isAdmin() ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:0.76rem" onclick="unarchiveUser('${u.id}', '${esc(u.full_name||u.email)}')">Unarchive</button>` : ''}
+        ` : `
           ${canDeactivate && u.id !== currentUser.id
             ? `<button class="btn ${u.is_active?'btn-danger-outline':'btn-outline'}" style="padding:4px 10px;font-size:0.76rem"
                 onclick="toggleUserActive('${u.id}', ${u.is_active})">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>`
@@ -2320,11 +2424,22 @@ async function renderUsers() {
             : ''}
           ${isAdmin() && u.id !== currentUser.id
             ? `<button class="btn btn-danger-outline" style="padding:4px 10px;font-size:0.76rem"
-                onclick="deleteUser('${u.id}', '${esc(u.full_name||u.email)}')">Remove</button>`
+                onclick="archiveUser('${u.id}', '${esc(u.full_name||u.email)}')">Archive</button>`
             : ''}
-        </td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
+        `}
+      </td>
+    </tr>`;
+  }
+
+  const allRows = [...activeUsers, ...archivedUsers].map(buildRow).join('');
+
+  wrap.innerHTML = `<div style="overflow-x:auto"><table class="users-table">
+    <thead><tr>
+      <th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${allRows}</tbody>
+  </table></div>
+  ${archivedUsers.length ? `<p style="font-size:0.76rem;color:var(--text-light);margin-top:10px;padding:0 2px">Archived users (${archivedUsers.length}) are shown at the bottom. Their timesheet data is preserved.</p>` : ''}`;
 }
 
 async function linkStaffToUser(userId, staffId) {
@@ -2366,10 +2481,274 @@ async function toggleUserActive(userId, currentlyActive) {
   try {
     const { error } = await db.from('profiles').update({ is_active: !currentlyActive }).eq('id', userId);
     if (error) { showToast('Error: ' + error.message); return; }
-    showToast(currentlyActive ? 'User deactivated' : 'User reactivated');
+    showToast(currentlyActive ? 'User deactivated — they can still log in but cannot submit timesheets' : 'User reactivated');
     renderUsers().catch(e => console.error('renderUsers after toggle:', e));
   } finally {
     hideLoading();
+  }
+}
+
+async function archiveUser(userId, displayName) {
+  showConfirm(
+    'Archive User',
+    `Archive ${displayName}? They will no longer be able to sign in, but all their timesheet records will be kept. You can unarchive them at any time.`,
+    async () => {
+      showLoading();
+      try {
+        await callUserAdmin({ action: 'archive_user', user_id: userId });
+        showToast(`${displayName} archived`);
+        renderUsers().catch(e => console.error('renderUsers after archive:', e));
+      } catch(e) {
+        showToast('Failed: ' + e.message);
+      } finally {
+        hideLoading();
+      }
+    },
+    'Archive'
+  );
+}
+
+async function unarchiveUser(userId, displayName) {
+  showConfirm(
+    'Restore User',
+    `Restore ${displayName}? They will be able to sign in again and their account will be reactivated.`,
+    async () => {
+      showLoading();
+      try {
+        await callUserAdmin({ action: 'unarchive_user', user_id: userId });
+        showToast(`${displayName} restored`);
+        renderUsers().catch(e => console.error('renderUsers after unarchive:', e));
+      } catch(e) {
+        showToast('Failed: ' + e.message);
+      } finally {
+        hideLoading();
+      }
+    },
+    'Restore'
+  );
+}
+
+// ================================================================
+// USER PROFILE MODAL
+// ================================================================
+function openProfileModal() {
+  document.getElementById('profileName').value  = currentProfile?.full_name || '';
+  document.getElementById('profilePhone').value = currentProfile?.phone || '';
+  document.getElementById('profileEmail').value = currentProfile?.email || '';
+  document.getElementById('profileModal').classList.add('open');
+}
+
+async function saveProfileModal() {
+  const name  = document.getElementById('profileName').value.trim();
+  const phone = document.getElementById('profilePhone').value.trim();
+  if (!name) { showToast('Please enter your full name'); return; }
+
+  const btn = document.querySelector('#profileModal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  showLoading();
+  try {
+    const { error } = await db.from('profiles').update({ full_name: name, phone: phone || null }).eq('id', currentUser.id);
+    if (error) { showToast('Error: ' + error.message); return; }
+
+    // Also update the linked staff record name if one exists
+    const linked = staffList.find(s => s.user_id === currentUser.id);
+    if (linked) {
+      await db.from('staff').update({ name }).eq('id', linked.id);
+      await loadStaff();
+    }
+
+    currentProfile.full_name = name;
+    currentProfile.phone = phone || null;
+    document.getElementById('headerUserName').textContent = name;
+    const av = document.getElementById('headerAvatar');
+    if (av) { av.textContent = initials(name); av.style.background = avColor(name); }
+    if (!isAdminOrManager()) updateStaffNameDisplay();
+
+    document.getElementById('profileModal').classList.remove('open');
+    showToast('Profile updated');
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+  }
+}
+
+// ================================================================
+// CALENDAR VIEW (admin only)
+// ================================================================
+let _calYear  = new Date().getFullYear();
+let _calMonth = new Date().getMonth(); // 0-indexed
+
+async function renderCalendar() {
+  const titleEl = document.getElementById('calTitle');
+  const gridEl  = document.getElementById('calGrid');
+  if (!titleEl || !gridEl) return;
+
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  titleEl.textContent = `${MONTHS[_calMonth]} ${_calYear}`;
+
+  gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-light)">Loading...</div>';
+
+  const firstDay = new Date(_calYear, _calMonth, 1);
+  const lastDay  = new Date(_calYear, _calMonth + 1, 0);
+  const fromStr  = firstDay.toISOString().split('T')[0];
+  const toStr    = lastDay.toISOString().split('T')[0];
+
+  const { data: shifts, error } = await db.from('timesheets')
+    .select('date, net_hours, staff:staff_id(id,name), location:location_id(id,name,icon)')
+    .gte('date', fromStr)
+    .lte('date', toStr)
+    .order('date');
+
+  if (error) {
+    gridEl.innerHTML = `<div style="grid-column:1/-1;padding:22px;color:var(--flag-red)">Error: ${esc(error.message)}</div>`;
+    return;
+  }
+
+  // Group shifts by date → by staff
+  const byDate = {};
+  (shifts || []).forEach(s => {
+    if (!byDate[s.date]) byDate[s.date] = {};
+    const sid = s.staff?.id || '_';
+    if (!byDate[s.date][sid]) byDate[s.date][sid] = { name: s.staff?.name || '?', hours: 0, locs: [] };
+    byDate[s.date][sid].hours += parseFloat(s.net_hours) || 0;
+    const icon = s.location?.icon;
+    if (icon && !byDate[s.date][sid].locs.includes(icon)) byDate[s.date][sid].locs.push(icon);
+  });
+
+  const todayStr = today();
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  let html = days.map(d => `<div class="cal-head-cell">${d}</div>`).join('');
+
+  // Padding: days from previous month
+  const startDow = (firstDay.getDay() + 6) % 7; // Mon=0
+  for (let i = 0; i < startDow; i++) {
+    const d = new Date(_calYear, _calMonth, 1 - startDow + i);
+    html += `<div class="cal-day other-month"><span class="cal-day-num">${d.getDate()}</span></div>`;
+  }
+
+  // This month
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const staffMap = byDate[dateStr] || {};
+    const bubbles = Object.values(staffMap).map(s => {
+      const color = avColor(s.name);
+      const hrs   = s.hours > 0 ? s.hours.toFixed(1) + 'h' : '';
+      const icons = s.locs.slice(0, 2).join('');
+      return `<div class="cal-bubble" style="background:${color}" title="${esc(s.name)} — ${hrs}${icons ? ' ' + icons : ''}">
+        <span class="cal-bubble-init">${initials(s.name)}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hrs}${icons}</span>
+      </div>`;
+    }).join('');
+    html += `<div class="cal-day${isToday?' today':''}"><span class="cal-day-num">${d}</span>${bubbles}</div>`;
+  }
+
+  // Padding: days from next month
+  const totalCells = startDow + lastDay.getDate();
+  const remainder  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let i = 1; i <= remainder; i++) {
+    html += `<div class="cal-day other-month"><span class="cal-day-num">${i}</span></div>`;
+  }
+
+  gridEl.innerHTML = html;
+}
+
+function calChangeMonth(dir) {
+  _calMonth += dir;
+  if (_calMonth < 0)  { _calMonth = 11; _calYear--; }
+  if (_calMonth > 11) { _calMonth = 0;  _calYear++; }
+  renderCalendar().catch(e => console.error('renderCalendar:', e));
+}
+
+// ================================================================
+// PDF EXPORT (admin only — grouped by person)
+// ================================================================
+async function exportPDF() {
+  if (!isAdmin()) { showToast('PDF export is available to admins only'); return; }
+  const btn = document.getElementById('pdfExportBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  showLoading();
+  try {
+    const fl = document.getElementById('filterLoc')?.value;
+    const ff = document.getElementById('filterFrom')?.value;
+    const ft = document.getElementById('filterTo')?.value;
+
+    let query = db.from('timesheets')
+      .select('*, staff:staff_id(id,name), location:location_id(name)')
+      .order('staff_id, date, start_time')
+      .limit(5000);
+    if (fl) query = query.eq('location_id', fl);
+    if (ff) query = query.gte('date', ff);
+    if (ft) query = query.lte('date', ft);
+
+    const { data: recs, error } = await query;
+    if (error) { showToast('Export error: ' + error.message); return; }
+    if (!recs?.length) { showToast('No records to export for the current filter'); return; }
+
+    // Group by staff member
+    const byStaff = {};
+    recs.forEach(r => {
+      const sid  = r.staff?.id || '_unknown';
+      const sn   = r.staff?.name || 'Unknown';
+      if (!byStaff[sid]) byStaff[sid] = { name: sn, records: [], totalHours: 0, shifts: 0 };
+      byStaff[sid].records.push(r);
+      byStaff[sid].totalHours += parseFloat(r.net_hours) || 0;
+      byStaff[sid].shifts++;
+    });
+
+    const periodStr = (ff && ft) ? `${fmtDate(ff)} to ${fmtDate(ft)}` : (ff ? `From ${fmtDate(ff)}` : (ft ? `To ${fmtDate(ft)}` : 'All time'));
+
+    const safeCss = `
+      body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:20px}
+      h1{font-size:17px;margin-bottom:4px}
+      .period{font-size:11px;color:#555;margin-bottom:18px}
+      .staff-section{margin-bottom:26px;page-break-inside:avoid}
+      .staff-hdr{font-size:13px;font-weight:700;color:#1b2b3a;border-bottom:2px solid #3d8bcd;padding-bottom:4px;margin-bottom:4px}
+      .staff-sub{font-size:10px;color:#555;margin-bottom:7px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1b2b3a;color:white;padding:5px 7px;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;text-align:left}
+      td{padding:4px 7px;border-bottom:1px solid #dde4ec;font-size:10px}
+      tr:nth-child(even) td{background:#f0f4f8}
+      .flag{color:#c0392b;font-weight:700}.ok{color:#1a9a5a}
+      .amended{color:#d4820a;font-size:8px;display:block;margin-top:2px}
+      @media print{.staff-section{page-break-before:auto}}`;
+
+    const bodyHtml = Object.values(byStaff).sort((a,b)=>a.name.localeCompare(b.name)).map(staff => `
+      <div class="staff-section">
+        <div class="staff-hdr">${esc(staff.name)}</div>
+        <div class="staff-sub">${staff.shifts} shift${staff.shifts!==1?'s':''} &nbsp;&bull;&nbsp; ${staff.totalHours.toFixed(2)} net hours</div>
+        <table>
+          <thead><tr><th>Date</th><th>Location</th><th>Start</th><th>End</th><th>Break</th><th>Net Hrs</th><th>Status</th></tr></thead>
+          <tbody>${staff.records.map(r => `
+            <tr>
+              <td>${fmtDate(r.date)}</td>
+              <td>${esc(r.location?.name||'—')}</td>
+              <td>${r.start_time?.slice(0,5)||'—'}</td>
+              <td>${r.end_time?.slice(0,5)||'—'}</td>
+              <td>${r.break_mins>0?r.break_mins+'m':'—'}</td>
+              <td>${r.net_hours?parseFloat(r.net_hours).toFixed(2)+'h':'—'}</td>
+              <td class="${r.break_warning?'flag':'ok'}">${r.break_warning?'⚠ Flag':'✓ OK'}${r.amended_at?'<span class="amended">Amended</span>':''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`).join('');
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) { showToast('Popup blocked — please allow popups and try again'); return; }
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>GWOC Timesheets — ${esc(periodStr)}</title><style>${safeCss}</style></head>
+      <body>
+        <h1>GWOC Timesheet Report</h1>
+        <div class="period">Period: ${esc(periodStr)} &nbsp;&bull;&nbsp; Generated: ${new Date().toLocaleString('en-GB')}</div>
+        ${bodyHtml}
+        <script>window.onload=function(){window.print();}<\/script>
+      </body></html>`);
+    win.document.close();
+    showToast('PDF window opened — use Print to save as PDF');
+  } finally {
+    hideLoading();
+    if (btn) { btn.disabled = false; btn.textContent = '📄 PDF'; }
   }
 }
 
@@ -2581,7 +2960,7 @@ async function exportCSV() {
     showToast(`Exported ${recs.length} records`);
   } finally {
     hideLoading();
-    if (btn) { btn.disabled = false; btn.textContent = '⬇ Export CSV'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ CSV'; }
   }
 }
 
@@ -2589,13 +2968,13 @@ async function exportCSV() {
 // CONFIRM MODAL
 // ================================================================
 let _mc = null;
-function showConfirm(title, msg, cb) {
+function showConfirm(title, msg, cb, confirmLabel) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalMsg').textContent   = msg;
   const confirmBtn = document.getElementById('modalConfirmBtn');
   confirmBtn.style.display = '';
   confirmBtn.disabled = false;
-  confirmBtn.textContent = 'Delete';
+  confirmBtn.textContent = confirmLabel || 'Confirm';
   _mc = cb;
   document.getElementById('confirmModal').classList.add('open');
 }
@@ -2621,10 +3000,17 @@ document.addEventListener('keydown', e => {
     closeModal();
     closeAmendModal();
     closeShiftEditModal();
+    document.getElementById('profileModal')?.classList.remove('open');
+    document.getElementById('locEditModal')?.classList.remove('open');
   }
   if (e.key === 'Enter' && document.getElementById('authScreen').style.display !== 'none') {
     if (document.getElementById('signInPanel').style.display !== 'none') signIn();
   }
+});
+
+// Close profile modal on overlay click
+document.getElementById('profileModal')?.addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
 });
 </script>
 </body>
