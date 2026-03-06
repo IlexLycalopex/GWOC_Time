@@ -216,7 +216,9 @@ CREATE POLICY "timesheets_update" ON timesheets
     )
   );
 
--- Only admins can delete timesheets
+-- Only admins can hard-delete timesheets (direct DB access).
+-- NOTE: the application uses soft-delete (UPDATE deleted_at) rather than DELETE.
+-- This policy is retained for DB-level cleanup by admins only.
 CREATE POLICY "timesheets_delete" ON timesheets
   FOR DELETE TO authenticated
   USING (
@@ -230,8 +232,9 @@ CREATE POLICY "timesheets_delete" ON timesheets
 
 -- ============================================================
 -- AMENDMENT LOG
--- Append-only audit trail for amendments and deletions.
--- Written before every amendment, and before deletion.
+-- Append-only audit trail for all amendments and soft-deletions.
+-- Written on every amendment AND when a record is soft-deleted.
+-- timesheet_id is SET NULL if the referenced row is ever hard-deleted.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS amendment_log (
   id            uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -299,9 +302,11 @@ CREATE TRIGGER on_auth_user_created
 CREATE INDEX IF NOT EXISTS idx_timesheets_staff_id     ON timesheets(staff_id);
 CREATE INDEX IF NOT EXISTS idx_timesheets_date          ON timesheets(date DESC);
 CREATE INDEX IF NOT EXISTS idx_timesheets_location_id   ON timesheets(location_id);
+CREATE INDEX IF NOT EXISTS idx_timesheets_deleted_at    ON timesheets(deleted_at);  -- Soft-delete filter
 CREATE INDEX IF NOT EXISTS idx_amendment_log_timesheet  ON amendment_log(timesheet_id);
 CREATE INDEX IF NOT EXISTS idx_amendment_log_changed_at ON amendment_log(changed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_staff_user_id            ON staff(user_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_archived     ON profiles(is_archived);
 
 
 -- ============================================================
@@ -312,4 +317,11 @@ CREATE INDEX IF NOT EXISTS idx_staff_user_id            ON staff(user_id);
 -- RLS enabled on all tables with per-role policies
 -- Trigger: on_auth_user_created → handle_new_user()
 -- Indexes created for common query patterns
+--
+-- Key design notes:
+--   - Timesheets use soft-delete: deleted_at/deleted_by columns;
+--     app filters WHERE deleted_at IS NULL. Data is never lost.
+--   - Users use soft-archive: is_archived flag + Supabase ban.
+--   - profiles SELECT policy scopes to own row or admin/manager.
+--   - Edge Function (gwoc-user-admin) requires verify_jwt=false.
 -- ============================================================

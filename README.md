@@ -10,10 +10,11 @@ A lightweight, mobile-first timesheet management system built as a single-page H
 - **Break compliance** — automatic flagging against UK break rules (15 min per 6-hour block)
 - **Role-based access** — three roles: Staff, Manager, Admin
 - **Dashboard** — KPIs, hours by employee/location/day-of-week, break flag list
-- **CSV export** — filtered export of all timesheet records
+- **CSV & PDF export** — filtered export respecting all active filters (date, location, name)
+- **Calendar view** — admin monthly grid showing all staff hours and locations per day, with clickable shift details and location filter
 - **Amendments** — managers can edit records; every amendment requires a reason and is logged
-- **Audit log** — full trail of all amendments and deletions
-- **User management** — invite new users by email (staff record auto-created), archive/unarchive accounts, change roles, edit profiles
+- **Audit log** — full trail of all amendments; deletions are soft (data retained in DB, logged)
+- **User management** — invite new users by email (staff record auto-created), archive/unarchive accounts, change roles, edit own profile
 - **Locations** — configurable work locations with emoji icons
 - **Mobile-first** — responsive design with card-based shift entry on mobile
 
@@ -43,7 +44,7 @@ See [`docs/SETUP.md`](docs/SETUP.md) for the full step-by-step setup guide.
 The short version:
 1. Create a [Supabase](https://supabase.com/) project
 2. Run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor
-3. Deploy [`supabase/functions/gwoc-user-admin/index.ts`](supabase/functions/gwoc-user-admin/index.ts) as an Edge Function
+3. Deploy [`supabase/functions/gwoc-user-admin/index.ts`](supabase/functions/gwoc-user-admin/index.ts) as an Edge Function — then toggle **"Enforce JWT Verification" OFF** in the function's Details tab (resets on every redeployment)
 4. Set your Supabase URL and anon key in `index.html` (lines marked `CONFIGURATION`)
 5. Update the `redirectTo` URL in the Edge Function to match your deployment URL
 6. Push to GitHub and enable GitHub Pages, or host `index.html` anywhere

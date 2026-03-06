@@ -69,6 +69,8 @@ The Edge Function handles user invitation, archive/unarchive, and deletion using
 7. Once deployed, go to the function's **Details** tab and ensure **"Enforce JWT Verification"** is toggled **OFF**
    - The function handles its own auth verification internally — the gateway-level check will reject valid user JWTs in some Supabase configurations
 
+> ⚠️ **Important:** The "Enforce JWT Verification" toggle **resets to ON every time the function is redeployed** via the Supabase Dashboard. After any redeployment, always check this setting is OFF. If archive, unarchive, or invite actions return a 401 error, this is the first thing to check.
+
 > **Environment variables:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are all auto-injected by Supabase — no manual configuration is needed.
 
 ---
@@ -151,8 +153,8 @@ The `redirectTo` URL in the Edge Function does not match your deployment URL. Up
 **Invite link shows Sign In instead of Set Password**
 Ensure `flowType: 'implicit'` is set in the Supabase client config in `index.html`. PKCE flow does not work on static hosts.
 
-**"Invalid JWT" when inviting users**
-The Edge Function has JWT verification enabled at the gateway level. Go to Edge Functions → gwoc-user-admin → Details and toggle "Enforce JWT Verification" off.
+**"Invalid JWT" when inviting, archiving, or unarchiving users**
+The Edge Function has JWT verification enabled at the gateway level. Go to **Edge Functions → gwoc-user-admin → Details** and toggle **"Enforce JWT Verification" off**. This setting resets to ON after every redeployment — always re-check it after updating the function.
 
 **App shows "Connecting — please wait" for a long time**
 Supabase free-tier projects pause after inactivity and take 5–20 seconds to wake. The app retries automatically for up to 40 seconds. This only affects the first request after a period of inactivity.
@@ -178,8 +180,47 @@ To update the application, replace `index.html` with the new version and push to
 
 Edge Function updates are deployed via the Supabase Dashboard (paste the new code and click Deploy).
 
-If upgrading from an earlier version of this project, run these on your existing database:
+If upgrading from an earlier version of this project, run the relevant statements below in the SQL Editor. Each block is safe to run — all use `IF NOT EXISTS` or `IF EXISTS` guards.
+
+**Adding user profile fields (phone, archive support):**
 ```sql
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_archived boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_profiles_is_archived ON profiles(is_archived);
+```
+
+**Adding soft-delete to timesheets (records retained in DB, hidden in app):**
+```sql
+ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS deleted_by uuid REFERENCES auth.users(id);
+CREATE INDEX IF NOT EXISTS idx_timesheets_deleted_at ON timesheets(deleted_at);
+```
+
+**Fixing profiles Row Level Security (restricts staff to own row only):**
+```sql
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "profiles_select" ON profiles;
+CREATE POLICY "profiles_select" ON profiles
+  FOR SELECT TO authenticated
+  USING (
+    id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+        AND p.role IN ('admin', 'manager')
+    )
+  );
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
+CREATE POLICY "profiles_update_own" ON profiles
+  FOR UPDATE TO authenticated USING (auth.uid() = id);
+DROP POLICY IF EXISTS "profiles_update_admin" ON profiles;
+CREATE POLICY "profiles_update_admin" ON profiles
+  FOR UPDATE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+        AND p.role IN ('admin', 'manager')
+    )
+  );
 ```
