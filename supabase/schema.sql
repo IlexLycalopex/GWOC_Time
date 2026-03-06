@@ -29,16 +29,27 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+-- ⚠️  IMPORTANT: profiles policies must NOT self-reference the profiles table.
+-- Doing so causes "infinite recursion detected in policy for relation profiles".
+-- Instead, use a SECURITY DEFINER function that bypasses RLS when reading the
+-- caller's own role.
+CREATE OR REPLACE FUNCTION public.my_role()
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid()
+$$;
+
 -- Users can read their own profile; admins/managers can read all profiles
+-- Uses my_role() to avoid self-referencing profiles (infinite recursion)
 CREATE POLICY "profiles_select" ON profiles
   FOR SELECT TO authenticated
   USING (
     id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid()
-        AND p.role IN ('admin', 'manager')
-    )
+    OR public.my_role() IN ('admin', 'manager')
   );
 
 -- Users can update their own profile (e.g. display name)
@@ -46,14 +57,11 @@ CREATE POLICY "profiles_update_own" ON profiles
   FOR UPDATE TO authenticated USING (auth.uid() = id);
 
 -- Only admins/managers can update other profiles (role changes, deactivation)
+-- Uses my_role() to avoid self-referencing profiles (infinite recursion)
 CREATE POLICY "profiles_update_admin" ON profiles
   FOR UPDATE TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid()
-      AND p.role IN ('admin','manager')
-    )
+    public.my_role() IN ('admin', 'manager')
   );
 
 -- Profiles are inserted by the trigger (runs as SECURITY DEFINER)
@@ -322,6 +330,8 @@ CREATE INDEX IF NOT EXISTS idx_profiles_is_archived     ON profiles(is_archived)
 --   - Timesheets use soft-delete: deleted_at/deleted_by columns;
 --     app filters WHERE deleted_at IS NULL. Data is never lost.
 --   - Users use soft-archive: is_archived flag + Supabase ban.
---   - profiles SELECT policy scopes to own row or admin/manager.
+--   - profiles SELECT/UPDATE policies use public.my_role() (SECURITY DEFINER)
+--     to avoid infinite recursion — never use EXISTS(SELECT FROM profiles)
+--     inside a profiles policy.
 --   - Edge Function (gwoc-user-admin) requires verify_jwt=false.
 -- ============================================================

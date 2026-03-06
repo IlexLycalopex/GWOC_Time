@@ -197,18 +197,29 @@ CREATE INDEX IF NOT EXISTS idx_timesheets_deleted_at ON timesheets(deleted_at);
 ```
 
 **Fixing profiles Row Level Security (restricts staff to own row only):**
+
+> ⚠️ **Critical:** Do NOT use `EXISTS (SELECT 1 FROM profiles WHERE ...)` inside a profiles policy — it causes "infinite recursion detected in policy for relation profiles" and breaks login for all users. Use the `my_role()` helper function below instead.
+
 ```sql
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Helper function: reads the caller's role bypassing RLS (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.my_role()
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid()
+$$;
+
 DROP POLICY IF EXISTS "profiles_select" ON profiles;
 CREATE POLICY "profiles_select" ON profiles
   FOR SELECT TO authenticated
   USING (
     id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid()
-        AND p.role IN ('admin', 'manager')
-    )
+    OR public.my_role() IN ('admin', 'manager')
   );
 DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
 CREATE POLICY "profiles_update_own" ON profiles
@@ -217,10 +228,6 @@ DROP POLICY IF EXISTS "profiles_update_admin" ON profiles;
 CREATE POLICY "profiles_update_admin" ON profiles
   FOR UPDATE TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid()
-        AND p.role IN ('admin', 'manager')
-    )
+    public.my_role() IN ('admin', 'manager')
   );
 ```
