@@ -563,7 +563,7 @@ table.rec-table{width:100%;border-collapse:collapse}
   </div>
   <div class="dash-cols">
     <div class="dash-card"><div class="dash-card-hdr">📅 Hours by Day of Week</div><div class="dash-card-body" id="chartDow"></div></div>
-    <div class="dash-card"><div class="dash-card-hdr">⚠ Break Flags</div><div class="dash-card-body" id="chartFlags"></div></div>
+    <div class="dash-card"><div class="dash-card-hdr" id="breakFlagsHdr">⚠ Break Flags</div><div class="dash-card-body" id="chartFlags"></div></div>
   </div>
   <div class="dash-card" style="margin-bottom:0">
     <div class="dash-card-hdr">📋 Staff Summary Table</div>
@@ -2986,7 +2986,15 @@ async function renderDashboard() {
   allShifts.forEach(s => { if (!s.date) return; const d = new Date(s.date); const k = DOW[(d.getDay()+6)%7]; byDow[k] += parseFloat(s.net_hours)||0; });
   drawBars('chartDow', DOW.map(d=>({label:d,val:byDow[d]})), i=>['#3d8bcd','#3d8bcd','#3d8bcd','#3d8bcd','#3d8bcd','#e8a020','#7056a0'][i]);
 
-  const violShifts = allShifts.filter(s => s.break_warning).slice(0, 12);
+  const allFlaggedShifts = allShifts.filter(s => s.break_warning);
+  const violShifts = allFlaggedShifts.slice(0, 5);
+  // Update header to show total count
+  const bfHdr = document.getElementById('breakFlagsHdr');
+  if (bfHdr) {
+    bfHdr.innerHTML = allFlaggedShifts.length > 0
+      ? `⚠ Break Flags <span style="font-size:0.72rem;font-weight:400;color:var(--text-mid)">(${allFlaggedShifts.length} total)</span>`
+      : '⚠ Break Flags';
+  }
   const vc = document.getElementById('chartFlags');
   if (!violShifts.length) {
     vc.innerHTML = '<div class="empty-state" style="padding:24px 0"><div class="icon" style="font-size:1.5rem">✅</div><p>No flags in this period.</p></div>';
@@ -3001,7 +3009,10 @@ async function renderDashboard() {
             Break taken: ${s.break_mins>0?s.break_mins+'m':'none'} | Required: ${s.required_break_mins}m
           </div>
         </div>
-      </div>`).join('');
+      </div>`).join('')
+    + (allFlaggedShifts.length > 5
+        ? `<div style="text-align:center;padding:10px 0 4px;font-size:0.74rem;color:var(--text-light)">Showing 5 most recent of ${allFlaggedShifts.length} — use the Timesheets tab to view all</div>`
+        : '');
   }
 
   const staffMap = {};
