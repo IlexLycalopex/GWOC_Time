@@ -29,9 +29,17 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- All authenticated users can read all profiles (needed for audit log name resolution)
+-- Users can read their own profile; admins/managers can read all profiles
 CREATE POLICY "profiles_select" ON profiles
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT TO authenticated
+  USING (
+    id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+        AND p.role IN ('admin', 'manager')
+    )
+  );
 
 -- Users can update their own profile (e.g. display name)
 CREATE POLICY "profiles_update_own" ON profiles
@@ -146,7 +154,9 @@ CREATE TABLE IF NOT EXISTS timesheets (
   created_at            timestamptz   NOT NULL DEFAULT now(),
   amended_by            uuid          REFERENCES auth.users(id),
   amended_at            timestamptz,
-  amendment_reason      text
+  amendment_reason      text,
+  deleted_at            timestamptz,                         -- Soft delete timestamp (NULL = active)
+  deleted_by            uuid          REFERENCES auth.users(id) -- Who deleted the record
 );
 
 ALTER TABLE timesheets ENABLE ROW LEVEL SECURITY;

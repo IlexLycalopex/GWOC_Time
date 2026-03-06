@@ -1949,7 +1949,8 @@ async function renderRecords(resetPage) {
 
   // Fetch total count for summary bar (always full filtered set)
   let countQuery = db.from('timesheets')
-    .select('id, net_hours, break_warning, staff:staff_id(name)', { count: 'exact', head: false });
+    .select('id, net_hours, break_warning, staff:staff_id(name)', { count: 'exact', head: false })
+    .is('deleted_at', null);
   if (fl) countQuery = countQuery.eq('location_id', fl);
   if (ff) countQuery = countQuery.gte('date', ff);
   if (ft) countQuery = countQuery.lte('date', ft);
@@ -1964,7 +1965,8 @@ async function renderRecords(resetPage) {
       net_hours, break_warning, created_at, amended_at, amendment_reason,
       staff:staff_id ( id, name ),
       location:location_id ( id, name )
-    `, { count: 'exact' });
+    `, { count: 'exact' })
+    .is('deleted_at', null);
 
   if (fl) query = query.eq('location_id', fl);
   if (ff) query = query.gte('date', ff);
@@ -2132,7 +2134,6 @@ function setSortCol(col) {
 // DELETE RECORD (admin only)
 // ================================================================
 async function deleteRecord(id) {
-  // Fetch entry details first so we can log them — row won't exist after deletion
   const { data: rec } = await db.from('timesheets')
     .select('date, start_time, end_time, staff:staff_id(name), location:location_id(name)')
     .eq('id', id).single();
@@ -2141,19 +2142,22 @@ async function deleteRecord(id) {
     ? `${rec.staff?.name || '?'} — ${fmtDate(rec.date)} ${rec.start_time?.slice(0,5)||''} to ${rec.end_time?.slice(0,5)||''} @ ${rec.location?.name || 'no location'}`
     : 'Unknown entry';
 
-  showConfirm('Delete Entry', `Delete timesheet for ${detail}? This cannot be undone.`, async () => {
+  showConfirm('Delete Entry', `Remove timesheet for ${detail}? The record is retained for audit purposes.`, async () => {
     showLoading();
     try {
-      // Write audit log BEFORE delete so timesheet_id still exists
+      // Soft delete — record is retained in DB, just hidden from the app
+      const { error } = await db.from('timesheets')
+        .update({ deleted_at: new Date().toISOString(), deleted_by: currentUser.id })
+        .eq('id', id);
+      if (error) { showToast('Error: ' + error.message); return; }
+      // Also write to amendment_log for full audit trail
       await db.from('amendment_log').insert({
         timesheet_id: id,
         amended_by:   currentUser.id,
         reason:       `DELETED — ${detail}`,
         changed_at:   new Date().toISOString()
       });
-      const { error } = await db.from('timesheets').delete().eq('id', id);
-      if (error) { showToast('Error: ' + error.message); return; }
-      showToast('Entry deleted and logged in audit');
+      showToast('Entry removed and retained in audit log');
       renderRecords().catch(e => console.error('renderRecords after delete:', e));
     } finally {
       hideLoading();
@@ -2606,8 +2610,8 @@ async function renderCalendar() {
 
   // Populate location filter select (once)
   const locSel = document.getElementById('calLocFilter');
-  if (locSel && locSel.options.length <= 1 && allLocations?.length) {
-    allLocations.forEach(l => {
+  if (locSel && locSel.options.length <= 1 && locationList?.length) {
+    locationList.forEach(l => {
       const opt = document.createElement('option');
       opt.value = l.id;
       opt.textContent = (l.icon || '') + ' ' + l.name;
@@ -2623,6 +2627,7 @@ async function renderCalendar() {
 
   let q = db.from('timesheets')
     .select('date, start_time, end_time, net_hours, break_mins, break_warning, staff:staff_id(id,name), location:location_id(id,name,icon)')
+    .is('deleted_at', null)
     .gte('date', fromStr)
     .lte('date', toStr)
     .order('date');
@@ -2768,6 +2773,7 @@ async function exportPDF() {
 
     let query = db.from('timesheets')
       .select('*, staff:staff_id(id,name), location:location_id(name)')
+      .is('deleted_at', null)
       .order('staff_id, date, start_time')
       .limit(5000);
     if (fl) query = query.eq('location_id', fl);
@@ -2926,7 +2932,8 @@ async function renderDashboard() {
   const fs = document.getElementById('dashStaffFilter')?.value;
 
   let query = db.from('timesheets')
-    .select('*, staff:staff_id(id,name), location:location_id(id,name)');
+    .select('*, staff:staff_id(id,name), location:location_id(id,name)')
+    .is('deleted_at', null);
   if (ff) query = query.gte('date', ff);
   if (ft) query = query.lte('date', ft);
   if (fl) query = query.eq('location_id', fl);
@@ -3033,6 +3040,7 @@ async function exportCSV() {
     const ft = document.getElementById('filterTo')?.value;
     let query = db.from('timesheets')
       .select('*, staff:staff_id(name), location:location_id(name)')
+      .is('deleted_at', null)
       .order('date', { ascending: false })
       .limit(5000);
     if (fl) query = query.eq('location_id', fl);
