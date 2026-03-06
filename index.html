@@ -174,10 +174,11 @@ table.rec-table{width:100%;border-collapse:collapse}
 .dash-preset-row .btn{flex:1}
 
 /* USERS / ADMIN */
-.users-table{width:100%;border-collapse:collapse}
-.users-table th{padding:9px 12px;font-size:0.66rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-light);border-bottom:1.5px solid var(--steam);text-align:left}
+.users-table{width:100%;border-collapse:collapse;table-layout:auto}
+.users-table th{padding:9px 12px;font-size:0.66rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-light);border-bottom:1.5px solid var(--steam);text-align:left;white-space:nowrap}
 .users-table td{padding:10px 12px;font-size:0.84rem;border-bottom:1px solid var(--steam);vertical-align:middle}
 .users-table tr:hover td{background:var(--milk)}
+.users-table th:last-child,.users-table td:last-child{min-width:220px}
 .role-select{padding:5px 8px;border:1.5px solid var(--steam);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:0.82rem;background:var(--milk);-webkit-appearance:none;appearance:none}
 
 /* TOAST + MODAL */
@@ -295,12 +296,6 @@ table.rec-table{width:100%;border-collapse:collapse}
     padding:4px 0;
     font-size:0.82rem;
   }
-  /* Linked Staff — full width */
-  .users-table td[data-label="linked"]{
-    grid-column:1/-1;
-    padding:4px 0;
-  }
-  .users-table td[data-label="linked"] select{width:100%}
   /* Actions — full width */
   .users-table td[data-label="actions"]{
     grid-column:1/-1;
@@ -436,6 +431,7 @@ table.rec-table{width:100%;border-collapse:collapse}
 .cal-day-num{font-size:0.68rem;font-weight:600;color:var(--text-light);margin-bottom:4px;display:block}
 .cal-day.today .cal-day-num{color:var(--accent);font-weight:700}
 .cal-bubble{display:flex;align-items:center;gap:3px;padding:2px 5px 2px 3px;border-radius:10px;font-size:0.63rem;font-weight:600;color:white;margin-bottom:2px;line-height:1.4;overflow:hidden}
+.cal-overflow{background:var(--text-light)!important;justify-content:center;font-size:0.62rem!important;opacity:0.85}
 .cal-bubble-init{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:700;flex-shrink:0}
 @media(max-width:720px){
   .cal-day{min-height:55px;padding:3px}
@@ -706,7 +702,11 @@ table.rec-table{width:100%;border-collapse:collapse}
     <button class="btn btn-outline" onclick="calChangeMonth(-1)" style="flex-shrink:0">← Prev</button>
     <div class="cal-title" id="calTitle">Loading...</div>
     <button class="btn btn-outline" onclick="calChangeMonth(1)" style="flex-shrink:0">Next →</button>
-    <div style="font-size:0.75rem;color:var(--text-mid);width:100%;text-align:center;margin-top:-4px">Coloured bubbles show each team member's hours and location per day</div>
+    <select id="calLocFilter" onchange="_calLocId=this.value;renderCalendar().catch(console.error)"
+      style="padding:5px 10px;border:1.5px solid var(--steam);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;background:var(--milk);flex-shrink:0">
+      <option value="">All locations</option>
+    </select>
+    <div style="font-size:0.75rem;color:var(--text-mid);width:100%;text-align:center;margin-top:-4px">Click a bubble to view shift details. Coloured by team member.</div>
   </div>
   <div class="cal-grid-wrap">
     <div class="cal-grid" id="calGrid"></div>
@@ -785,7 +785,7 @@ table.rec-table{width:100%;border-collapse:collapse}
       <input type="text" id="profileName" placeholder="Your full name" autocomplete="name">
     </div>
     <div class="field-group" style="margin-bottom:14px">
-      <label>Phone <span style="font-weight:400;font-size:0.7rem;text-transform:none">(optional)</span></label>
+      <label>Mobile <span style="font-weight:400;font-size:0.7rem;text-transform:none">(optional)</span></label>
       <input type="tel" id="profilePhone" placeholder="e.g. 07700 900000" autocomplete="tel">
     </div>
     <div class="field-group" style="margin-bottom:16px">
@@ -795,6 +795,17 @@ table.rec-table{width:100%;border-collapse:collapse}
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="document.getElementById('profileModal').classList.remove('open')">Cancel</button>
       <button class="btn btn-primary" onclick="saveProfileModal()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Calendar shift detail modal -->
+<div class="modal-overlay" id="calDetailModal">
+  <div class="modal" style="max-width:480px;max-height:80vh;overflow-y:auto">
+    <h3 id="calDetailTitle">Shift Details</h3>
+    <div id="calDetailBody" style="margin-top:12px"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-outline" onclick="document.getElementById('calDetailModal').classList.remove('open')">Close</button>
     </div>
   </div>
 </div>
@@ -2410,23 +2421,25 @@ async function renderUsers() {
         : roleLabel(u.role)}
       </td>
       <td data-label="status" data-label-text="Status"><span style="font-size:0.78rem;color:${statusColor}">${statusLabel}</span></td>
-      <td data-label="actions" style="display:flex;gap:6px;flex-wrap:wrap">
+      <td data-label="actions">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         ${isArchived ? `
-          ${isAdmin() ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:0.76rem" onclick="unarchiveUser('${u.id}', '${esc(u.full_name||u.email)}')">Unarchive</button>` : ''}
+          ${isAdmin() ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:0.76rem;white-space:nowrap" onclick="unarchiveUser('${u.id}', '${esc(u.full_name||u.email)}')">Unarchive</button>` : ''}
         ` : `
           ${canDeactivate && u.id !== currentUser.id
-            ? `<button class="btn ${u.is_active?'btn-danger-outline':'btn-outline'}" style="padding:4px 10px;font-size:0.76rem"
+            ? `<button class="btn ${u.is_active?'btn-danger-outline':'btn-outline'}" style="padding:4px 10px;font-size:0.76rem;white-space:nowrap"
                 onclick="toggleUserActive('${u.id}', ${u.is_active})">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>`
             : ''}
           ${isAdmin() && u.id !== currentUser.id
-            ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:0.76rem"
+            ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:0.76rem;white-space:nowrap"
                 onclick="resendInvite('${esc(u.email)}', '${esc(u.full_name||'')}', '${esc(u.role||'staff')}')">Resend invite</button>`
             : ''}
           ${isAdmin() && u.id !== currentUser.id
-            ? `<button class="btn btn-danger-outline" style="padding:4px 10px;font-size:0.76rem"
+            ? `<button class="btn btn-danger-outline" style="padding:4px 10px;font-size:0.76rem;white-space:nowrap"
                 onclick="archiveUser('${u.id}', '${esc(u.full_name||u.email)}')">Archive</button>`
             : ''}
         `}
+        </div>
       </td>
     </tr>`;
   }
@@ -2577,6 +2590,9 @@ async function saveProfileModal() {
 // ================================================================
 let _calYear  = new Date().getFullYear();
 let _calMonth = new Date().getMonth(); // 0-indexed
+let _calLocId = '';
+let _calData  = {};
+let _calDayAll = {};
 
 async function renderCalendar() {
   const titleEl = document.getElementById('calTitle');
@@ -2588,35 +2604,55 @@ async function renderCalendar() {
 
   gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-light)">Loading...</div>';
 
+  // Populate location filter select (once)
+  const locSel = document.getElementById('calLocFilter');
+  if (locSel && locSel.options.length <= 1 && allLocations?.length) {
+    allLocations.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = (l.icon || '') + ' ' + l.name;
+      locSel.appendChild(opt);
+    });
+    locSel.value = _calLocId;
+  }
+
   const firstDay = new Date(_calYear, _calMonth, 1);
   const lastDay  = new Date(_calYear, _calMonth + 1, 0);
   const fromStr  = firstDay.toISOString().split('T')[0];
   const toStr    = lastDay.toISOString().split('T')[0];
 
-  const { data: shifts, error } = await db.from('timesheets')
-    .select('date, net_hours, staff:staff_id(id,name), location:location_id(id,name,icon)')
+  let q = db.from('timesheets')
+    .select('date, start_time, end_time, net_hours, break_mins, break_warning, staff:staff_id(id,name), location:location_id(id,name,icon)')
     .gte('date', fromStr)
     .lte('date', toStr)
     .order('date');
+  if (_calLocId) q = q.eq('location_id', _calLocId);
+  const { data: shifts, error } = await q;
 
   if (error) {
     gridEl.innerHTML = `<div style="grid-column:1/-1;padding:22px;color:var(--flag-red)">Error: ${esc(error.message)}</div>`;
     return;
   }
 
+  // Reset data stores
+  _calData = {};
+  _calDayAll = {};
+
   // Group shifts by date → by staff
   const byDate = {};
   (shifts || []).forEach(s => {
     if (!byDate[s.date]) byDate[s.date] = {};
     const sid = s.staff?.id || '_';
-    if (!byDate[s.date][sid]) byDate[s.date][sid] = { name: s.staff?.name || '?', hours: 0, locs: [] };
+    if (!byDate[s.date][sid]) byDate[s.date][sid] = { name: s.staff?.name || '?', hours: 0, locs: [], shifts: [] };
     byDate[s.date][sid].hours += parseFloat(s.net_hours) || 0;
     const icon = s.location?.icon;
     if (icon && !byDate[s.date][sid].locs.includes(icon)) byDate[s.date][sid].locs.push(icon);
+    byDate[s.date][sid].shifts.push(s);
   });
 
   const todayStr = today();
   const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const SHOW_MAX = 3;
 
   let html = days.map(d => `<div class="cal-head-cell">${d}</div>`).join('');
 
@@ -2631,17 +2667,32 @@ async function renderCalendar() {
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const dateStr = `${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = dateStr === todayStr;
-    const staffMap = byDate[dateStr] || {};
-    const bubbles = Object.values(staffMap).map(s => {
+    const staffEntries = Object.entries(byDate[dateStr] || {});
+
+    // Build _calData and _calDayAll for modals
+    _calDayAll[dateStr] = staffEntries.map(([sid, s]) => ({ sid, name: s.name, color: avColor(s.name), shifts: s.shifts }));
+    staffEntries.forEach(([sid, s]) => {
+      _calData[dateStr + '::' + sid] = { name: s.name, color: avColor(s.name), shifts: s.shifts };
+    });
+
+    const shown   = staffEntries.slice(0, SHOW_MAX);
+    const overflow = staffEntries.length - SHOW_MAX;
+
+    const bubbles = shown.map(([sid, s]) => {
       const color = avColor(s.name);
       const hrs   = s.hours > 0 ? s.hours.toFixed(1) + 'h' : '';
       const icons = s.locs.slice(0, 2).join('');
-      return `<div class="cal-bubble" style="background:${color}" title="${esc(s.name)} — ${hrs}${icons ? ' ' + icons : ''}">
+      return `<div class="cal-bubble" style="background:${color};cursor:pointer" title="${esc(s.name)} — ${hrs}${icons ? ' ' + icons : ''}" onclick="calShowDetail('${dateStr}','${sid}')">
         <span class="cal-bubble-init">${initials(s.name)}</span>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hrs}${icons}</span>
       </div>`;
     }).join('');
-    html += `<div class="cal-day${isToday?' today':''}"><span class="cal-day-num">${d}</span>${bubbles}</div>`;
+
+    const overflowBubble = overflow > 0
+      ? `<div class="cal-bubble cal-overflow" onclick="calShowDayAll('${dateStr}')" style="cursor:pointer">+${overflow} more</div>`
+      : '';
+
+    html += `<div class="cal-day${isToday?' today':''}"><span class="cal-day-num">${d}</span>${bubbles}${overflowBubble}</div>`;
   }
 
   // Padding: days from next month
@@ -2659,6 +2710,47 @@ function calChangeMonth(dir) {
   if (_calMonth < 0)  { _calMonth = 11; _calYear--; }
   if (_calMonth > 11) { _calMonth = 0;  _calYear++; }
   renderCalendar().catch(e => console.error('renderCalendar:', e));
+}
+
+function calShowDetail(dateStr, staffId) {
+  const d = _calData[dateStr + '::' + staffId];
+  if (!d) return;
+  document.getElementById('calDetailTitle').innerHTML =
+    `<span style="display:inline-flex;align-items:center;gap:8px">
+      <span style="width:28px;height:28px;border-radius:50%;background:${d.color};display:inline-flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:700;color:white;flex-shrink:0">${initials(d.name)}</span>
+      ${esc(d.name)} &mdash; ${fmtDate(dateStr)}
+    </span>`;
+  document.getElementById('calDetailBody').innerHTML = d.shifts.map(s => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--steam)">
+      <div style="font-size:0.9rem;font-weight:600">${(s.start_time||'').slice(0,5)} &rarr; ${(s.end_time||'').slice(0,5)}
+        <span style="font-size:0.8rem;font-weight:400;color:var(--text-mid)"> (${parseFloat(s.net_hours||0).toFixed(2)}h)</span>
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-mid);margin-top:3px">
+        ${s.location?.icon||''} ${esc(s.location?.name||'No location')}
+        ${s.break_mins > 0 ? ` &bull; ${s.break_mins}m break` : ''}
+        ${s.break_warning ? ' <span style="color:var(--flag-red);font-weight:600">&#9888; Break flag</span>' : ''}
+      </div>
+    </div>`).join('');
+  document.getElementById('calDetailModal').classList.add('open');
+}
+
+function calShowDayAll(dateStr) {
+  const entries = _calDayAll[dateStr] || [];
+  document.getElementById('calDetailTitle').textContent = `All shifts \u2014 ${fmtDate(dateStr)}`;
+  document.getElementById('calDetailBody').innerHTML = entries.map(e => `
+    <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--steam)">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+        <span style="width:24px;height:24px;border-radius:50%;background:${e.color};display:inline-flex;align-items:center;justify-content:center;font-size:0.58rem;font-weight:700;color:white;flex-shrink:0">${initials(e.name)}</span>
+        <strong>${esc(e.name)}</strong>
+      </div>
+      ${e.shifts.map(s => `
+        <div style="padding:5px 0 5px 31px;font-size:0.82rem;border-bottom:1px solid var(--chalk)">
+          ${(s.start_time||'').slice(0,5)} &rarr; ${(s.end_time||'').slice(0,5)} &nbsp;<span style="color:var(--text-mid)">(${parseFloat(s.net_hours||0).toFixed(2)}h)</span>
+          &nbsp; ${s.location?.icon||''} ${esc(s.location?.name||'&mdash;')}
+          ${s.break_warning ? ' <span style="color:var(--flag-red)">&#9888;</span>' : ''}
+        </div>`).join('')}
+    </div>`).join('');
+  document.getElementById('calDetailModal').classList.add('open');
 }
 
 // ================================================================
@@ -2684,11 +2776,14 @@ async function exportPDF() {
 
     const { data: recs, error } = await query;
     if (error) { showToast('Export error: ' + error.message); return; }
-    if (!recs?.length) { showToast('No records to export for the current filter'); return; }
+    const fn = document.getElementById('filterName')?.value.trim().toLowerCase();
+    let filteredRecs = recs || [];
+    if (fn && isAdminOrManager()) filteredRecs = filteredRecs.filter(r => r.staff?.name?.toLowerCase().includes(fn));
+    if (!filteredRecs.length) { showToast('No records to export for the current filter'); return; }
 
     // Group by staff member
     const byStaff = {};
-    recs.forEach(r => {
+    filteredRecs.forEach(r => {
       const sid  = r.staff?.id || '_unknown';
       const sn   = r.staff?.name || 'Unknown';
       if (!byStaff[sid]) byStaff[sid] = { name: sn, records: [], totalHours: 0, shifts: 0 };
@@ -2943,9 +3038,12 @@ async function exportCSV() {
     if (fl) query = query.eq('location_id', fl);
     if (ff) query = query.gte('date', ff);
     if (ft) query = query.lte('date', ft);
-    const { data: recs, error } = await query;
+    const { data: rawRecs, error } = await query;
     if (error) { showToast('Export error: ' + error.message); return; }
-    if (!recs?.length) { showToast('No records to export for the current filter'); return; }
+    const fn2 = document.getElementById('filterName')?.value.trim().toLowerCase();
+    let recs = rawRecs || [];
+    if (fn2 && isAdminOrManager()) recs = recs.filter(r => r.staff?.name?.toLowerCase().includes(fn2));
+    if (!recs.length) { showToast('No records to export for the current filter'); return; }
 
     let csv = 'Name,Location,Date,Start,End,Break Taken (mins),Break Required (mins),Net Hours,Break Flag\n';
     recs.forEach(r => {
@@ -3010,6 +3108,11 @@ document.addEventListener('keydown', e => {
 
 // Close profile modal on overlay click
 document.getElementById('profileModal')?.addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+// Close calendar detail modal on overlay click
+document.getElementById('calDetailModal')?.addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');
 });
 </script>
