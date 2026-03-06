@@ -13,7 +13,7 @@ A lightweight, mobile-first timesheet management system built as a single-page H
 - **CSV export** — filtered export of all timesheet records
 - **Amendments** — managers can edit records; every amendment requires a reason and is logged
 - **Audit log** — full trail of all amendments and deletions
-- **User management** — invite new users by email, link to staff records, change roles, deactivate
+- **User management** — invite new users by email (staff record auto-created), archive/unarchive accounts, change roles, edit profiles
 - **Locations** — configurable work locations with emoji icons
 - **Mobile-first** — responsive design with card-based shift entry on mobile
 
@@ -29,7 +29,7 @@ Browser (GitHub Pages)
                     ├── Auth           Email/password + invite flows
                     ├── Database       PostgreSQL (profiles, staff, locations, timesheets, amendment_log)
                     ├── Row Level Security  Per-role data access policies
-                    └── Edge Function  gwoc-user-admin (invite/delete via service role key)
+                    └── Edge Function  gwoc-user-admin (invite/archive/unarchive/delete via service role key)
 ```
 
 No build step. No Node.js. No framework. The app is a single HTML file that can be hosted anywhere — GitHub Pages is used by default.
@@ -61,10 +61,11 @@ The short version:
 | Edit/amend records                |       |   ✓    |  ✓   |
 | Dashboard access                  |  ✓   |   ✓    |  ✓   |
 | Manage locations                  |       |   ✓    |  ✓   |
-| Manage staff records              |       |   ✓    |  ✓   |
 | Invite / manage user accounts     |       |   ✓    |  ✓   |
+| PDF export                        |             |  ✓   |
+| Calendar view                     |             |  ✓   |
 | Delete records                    |             |  ✓   |
-| Remove users                      |             |  ✓   |
+| Archive / unarchive users         |             |  ✓   |
 | Create admin accounts             |             |  ✓   |
 
 ---

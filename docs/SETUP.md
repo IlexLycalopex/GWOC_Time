@@ -55,7 +55,7 @@ You should see success messages for each statement. This creates:
 
 ## Step 4 — Deploy the Edge Function
 
-The Edge Function handles user invitation and deletion using the service role key, keeping it off the browser entirely.
+The Edge Function handles user invitation, archive/unarchive, and deletion using the service role key, keeping it off the browser entirely.
 
 1. In the Supabase Dashboard, go to **Edge Functions**
 2. Click **New Function**
@@ -134,12 +134,12 @@ Alternatively, run the invite flow from the Supabase Dashboard once a first admi
 
 1. Visit your deployment URL
 2. Sign in with the admin credentials
-3. You should see the app with all tabs visible (Dashboard, Timesheets, Locations, Users, Audit Log)
+3. You should see the app with all tabs visible (Dashboard, Timesheets, Locations, Users, Audit Log, Calendar)
 4. Go to **Locations** and add at least one location
-5. Go to **Users → Staff Records** and add a staff member
-6. Go to **Users → User Accounts** and send an invite to a test email
-7. Click the invite link from the email — you should see "Welcome — set your password"
-8. Set a password — you should be redirected into the app as the invited user
+5. Go to **Users** and send an invite to a test email — a linked staff record is created automatically
+6. Click the invite link from the email — you should see "Welcome — set your password"
+7. Set a password — you should be redirected into the app as the invited user
+8. As admin, return to **Users** and confirm the new user appears
 
 ---
 
@@ -157,8 +157,15 @@ The Edge Function has JWT verification enabled at the gateway level. Go to Edge 
 **App shows "Connecting — please wait" for a long time**
 Supabase free-tier projects pause after inactivity and take 5–20 seconds to wake. The app retries automatically for up to 40 seconds. This only affects the first request after a period of inactivity.
 
-**Staff user sees "No staff record linked" warning**
-Go to Users → User Accounts and use the "Linked Staff Record" dropdown to link the user's login account to their staff record.
+**Staff user has no timesheet data / cannot be selected**
+The linked staff record may be missing. This can happen if a user was created before v4 of the Edge Function. Go to **Supabase Dashboard → SQL Editor** and run:
+```sql
+INSERT INTO staff (name, user_id)
+SELECT full_name, id FROM profiles WHERE id = '<user-uuid>';
+```
+
+**Archived user cannot sign in**
+This is expected — archived users are banned at the auth level. To restore access, go to **Users**, find the user in the Archived section, and click **Unarchive**.
 
 **CSV export is empty**
 Ensure at least one timesheet has been saved. Check that the date filters are not excluding your records.
@@ -170,3 +177,9 @@ Ensure at least one timesheet has been saved. Check that the date filters are no
 To update the application, replace `index.html` with the new version and push to GitHub. If the database schema has changed, run only the new/changed SQL statements in the SQL Editor — do not re-run the full schema as it will fail on existing tables.
 
 Edge Function updates are deployed via the Supabase Dashboard (paste the new code and click Deploy).
+
+If upgrading from an earlier version of this project, run these on your existing database:
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_archived boolean NOT NULL DEFAULT false;
+```
